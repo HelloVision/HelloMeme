@@ -28,7 +28,7 @@
 
 - ☐ [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) for ablation experiments.
 - ☐ `ComfyUI` interface for HelloMeme.
-- 🗹 `11/1/2024` Release the code for the core functionalities..
+- ✅ `11/1/2024` Release the code for the core functionalities..
 
 ## Introduction
 This repository contains the official code implementation of the paper [`HelloMeme`](https://arxiv.org/pdf/2410.22901). Any updates related to the code or models from the paper will be posted here. The code for the ablation experiments discussed in the paper will be added to the [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) section. Additionally, we plan to release a `ComfyUI` interface for HelloMeme, with updates posted here as well.
