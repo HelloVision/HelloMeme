@@ -1,0 +1,8 @@
+*.pyc
+*.pyd
+*.pth
+*.pkl
+*_fps15.mp4
+.idea/
+data/results
+pretrained_models/
