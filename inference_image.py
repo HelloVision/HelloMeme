@@ -14,7 +14,7 @@ from PIL import Image
 import torch
 from hellomeme.utils import get_face_params, face_params_to_tensor, load_unet_from_safetensors
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
-from hellomeme.piplines import HMImagePipeline
+from hellomeme.pipelines import HMImagePipeline
 from transformers import CLIPVisionModelWithProjection
 
 def inference_image(engines, ref_img_path, drive_img_path, seed=0):
@@ -65,7 +65,7 @@ def inference_image(engines, ref_img_path, drive_img_path, seed=0):
 
     generator = torch.Generator(device).manual_seed(seed)
 
-    result_img = pipline(
+    result_img = pipeline(
         prompt=[text],
         strength=1.0,
         image=ref_image_pil,
@@ -97,17 +97,17 @@ if __name__ == '__main__':
 'h94/IP-Adapter',subfolder='models/image_encoder').to(dtype=dtype, device=device),
     )
 
-    pipline = HMImagePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
-    pipline.caryomitosis()
+    pipeline = HMImagePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
+    pipeline.caryomitosis()
 
     ### load customized checkpoint or lora here:
     ## checkpoints
-    # state_dict = load_unet_from_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors", pipline.unet_ref.config)
-    # pipline.unet.load_state_dict(state_dict, strict=False)
+    # state_dict = load_unet_from_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors", pipeline.unet_ref.config)
+    # pipeline.unet.load_state_dict(state_dict, strict=False)
     ### lora
-    # pipline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
+    # pipeline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
 
-    pipline.insert_hm_modules()
-    engines['pipline'] = pipline.to(device=device, dtype=dtype)
+    pipeline.insert_hm_modules()
+    engines['pipeline'] = pipeline.to(device=device, dtype=dtype)
 
     inference_image(engines, ref_img_path, drive_img_path, seed=1024)
