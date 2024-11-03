@@ -105,7 +105,7 @@ The output of the video generation script is shown below:
 
 > [!Note]
 > 
-> If the face in the driving video has significant movement (such as evident camera motion), it is recommended to set the `trans_ratio parameter` to 0 to prevent distorted outputs.
+> If the face in the driving video has significant movement (such as evident camera motion), it is recommended to set the `trans_ratio` parameter to 0 to prevent distorted outputs.
 > 
 >`inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)`
 
