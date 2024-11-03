@@ -61,6 +61,54 @@ python inference_image.py # for image generation
 python inference_video.py # for video generation
 ```
 
+## Examples
+
+### Image Generation
+
+The input for the image generation script `inference_image.py` consists of a reference image and a drive image, as shown in the figure below:
+
+<table>
+    <tr>
+        <td><center><img src="./data/reference_images/harris.jpg" width="256"> <br> Reference Image</center></td>
+        <td ><center><img src="./data/drive_images/yao.jpg" height="256"> <br> Drive Image</center> </td>
+    </tr>
+</table>
+
+The output of the image generation script is shown below:
+
+<table>
+    <tr>
+        <td><center><img src="./data/harris_yao.jpg" width="256" height="256"> <br> Based on SD1.5 </center></td>
+        <td ><center><img src="./data/harris_yao_toon.jpg" height="256" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a> </center> </td>
+    </tr>
+</table>
+
+### Video Generation
+
+The input for the video generation script `inference_video.py` consists of a reference image and a drive video, as shown in the figure below:
+
+<table>
+    <tr>
+        <td><center><img src="./data/reference_images/trump.jpg" width="256"> <br> Reference Image</center></td>
+        <td ><center><img src="./data/jue.gif" height="256"> <br> Drive Video </center> </td>
+    </tr>
+</table>
+
+The output of the video generation script is shown below:
+
+<table>
+    <tr>
+        <td><center><img src="./data/trump_jue.gif" width="256"> <br> Based on <a href="https://civitai.com/models/25694/epicrealism">epicrealism</a> </center></td>
+        <td ><center><img src="./data/trump_jue-toon.gif" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a></center> </td>
+    </tr>
+</table>
+
+> [!Note]
+> 
+> If the face in the driving video has significant movement (such as evident camera motion), it is recommended to set the `trans_ratio parameter` to 0 to prevent distorted outputs.
+> 
+>`inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)`
+
 ## Pretrained Models
 
 Our models are all hosted on [🤗](https://huggingface.co/songkey), and the startup script will download them automatically. The specific model information is as follows:

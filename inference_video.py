@@ -81,8 +81,8 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
     ff_cat_video_and_audio(save_path, drive_video_path, osp.splitext(save_path)[0] + '_audio.mp4')
 
 if __name__ == '__main__':
-    ref_img_path = r"data/reference_images/kjl.jpg"
-    drive_video_path = r"data/drive_videos/nice.mp4"
+    ref_img_path = r"data/reference_images/trump1.jpg"
+    drive_video_path = r"data/drive_videos/jue.mp4"
     save_dir = r'data/results'
 
     ref_basname = osp.splitext(osp.basename(ref_img_path))[0]
@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
     ### load customized checkpoint or lora here:
     ## checkpoints
-    # state_dict = load_unet_from_safetensors(r"pretrained_models/realisticVisionV60B1_v51HyperVAE.safetensors", pipline.unet_ref.config)
+    # state_dict = load_unet_from_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors", pipline.unet_ref.config)
     # pipline.unet.load_state_dict(state_dict, strict=False)
     ### lora
     # pipline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
@@ -114,4 +114,4 @@ if __name__ == '__main__':
     engines['pipline'] = pipline.to(device=device, dtype=dtype)
 
     save_path = osp.join(save_dir, f'{ref_basname}_{drive_basename}.mp4')
-    inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.5)
+    inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)
