@@ -105,8 +105,8 @@ if __name__ == '__main__':
 
     ### load customized checkpoint or lora here:
     ## checkpoints
-    state_dict = load_unet_from_safetensors(r"pretrained_modelsrealisticVisionV60B1_v51HyperVAE.safetensors", pipline.unet_ref.config)
-    pipline.unet.load_state_dict(state_dict, strict=False)
+    # state_dict = load_unet_from_safetensors(r"pretrained_models/realisticVisionV60B1_v51HyperVAE.safetensors", pipline.unet_ref.config)
+    # pipline.unet.load_state_dict(state_dict, strict=False)
     ### lora
     # pipline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
 

@@ -43,7 +43,9 @@ To install the latest version of PyTorch, please refer to the official [PyTorch]
 ```bash
 pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
 ```
-[!IMPORTANT]
+
+> [!IMPORTANT]  
+> 
 > Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.31.0**.
 
 ### 3. Clone the repository

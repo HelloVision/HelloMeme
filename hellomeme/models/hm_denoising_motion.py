@@ -21,6 +21,7 @@ from .hm_blocks import InsertReferenceAdapter
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
+
 class HMDenoisingMotion(UNetMotionModel, InsertReferenceAdapter):
     def forward(
             self,

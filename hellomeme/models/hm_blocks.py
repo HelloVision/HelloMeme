@@ -33,6 +33,7 @@ from diffusers.models.attention_processor import (
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
+
 class HMReferenceAdapter(ModelMixin, ConfigMixin):
     @register_to_config
     def __init__(self,

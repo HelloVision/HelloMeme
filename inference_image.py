@@ -77,9 +77,7 @@ def inference_image(engines, ref_img_path, drive_img_path, seed=0):
         output_type='np'
     )
 
-    result_img = cv2.cvtColor(np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8), cv2.COLOR_BGR2RGB)
-    cv2.imshow('show', result_img)
-    cv2.waitKey()
+    return cv2.cvtColor(np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8), cv2.COLOR_BGR2RGB)
 
 if __name__ == '__main__':
     ref_img_path = r"data/reference_images/BeautyFool.jpg"
@@ -110,4 +108,6 @@ if __name__ == '__main__':
     pipline.insert_hm_modules()
     engines['pipline'] = pipline.to(device=device, dtype=dtype)
 
-    inference_image(engines, ref_img_path, drive_img_path, seed=1024)
+    result_image = inference_image(engines, ref_img_path, drive_img_path, seed=1024)
+    cv2.imshow('show', result_image)
+    cv2.waitKey()

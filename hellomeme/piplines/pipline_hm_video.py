@@ -25,6 +25,7 @@ from diffusers import MotionAdapter
 from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet
 from ..models import HMReferenceAdapter
 
+
 class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
     def caryomitosis(self,):
         if not hasattr(self, "unet_ref"):

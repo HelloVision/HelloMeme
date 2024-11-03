@@ -8,7 +8,7 @@
 @Desc   : 
 """
 
-from .hm_denoising_3d import HMDenoising3D, add_hm_reference_modules
 from .hm_denoising_motion import HMDenoisingMotion
 from .hm_control import HMControlNet
 from .hm_blocks import HMReferenceAdapter
+from .hm_denoising_3d import HMDenoising3D

@@ -10,7 +10,6 @@ adapted from: https://github.com/huggingface/diffusers/blob/main/src/diffusers/m
 """
 
 import torch
-import torch.nn as nn
 import torch.utils.checkpoint
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -18,9 +17,10 @@ from einops import rearrange
 
 from diffusers.utils import USE_PEFT_BACKEND, deprecate, logging, scale_lora_layers, unscale_lora_layers
 from diffusers.models.unets.unet_2d_condition import UNet2DConditionModel, UNet2DConditionOutput
-from .hm_blocks import SKReferenceAttention, CopyWeights, InsertReferenceAdapter
+from .hm_blocks import CopyWeights, InsertReferenceAdapter
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+
 
 class HMDenoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
     def forward(
@@ -287,64 +287,3 @@ class HMDenoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
             return (sample, res_cache)
 
         return (UNet2DConditionOutput(sample=sample), res_cache)
-
-def add_hm_reference_modules(unet,
-         block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
-         down_block_types: Tuple[str] = (
-                 "CrossAttnDownBlock2D",
-                 "CrossAttnDownBlock2D",
-                 "CrossAttnDownBlock2D",
-                 "DownBlock2D",
-         ),
-         up_block_types: Tuple[str] = (
-                 "UpBlock2D",
-                 "CrossAttnUpBlock2D",
-                 "CrossAttnUpBlock2D",
-                 "CrossAttnUpBlock2D"),
-        num_attention_heads: Optional[Union[int, Tuple[int]]] = 8,
-        use_3d: bool = False):
-
-    unet.use_reference_module = True
-    unet.use_3d = use_3d
-    unet.reference_modules_down = nn.ModuleList([])
-    if use_3d:
-        unet.motion_modules_down = nn.ModuleList([])
-
-    if isinstance(num_attention_heads, int):
-        num_attention_heads = (num_attention_heads,) * len(down_block_types)
-
-    for i, down_block_type in enumerate(down_block_types):
-        output_channel = block_out_channels[i]
-
-        unet.reference_modules_down.append(
-            SKReferenceAttention(
-                in_channels=output_channel,
-                num_attention_heads=num_attention_heads[i],
-            )
-        )
-
-    unet.reference_modules_mid = SKReferenceAttention(
-        in_channels=block_out_channels[-1],
-        num_attention_heads=num_attention_heads[-1],
-    )
-
-    unet.reference_modules_up = nn.ModuleList([])
-
-    reversed_block_out_channels = list(reversed(block_out_channels))
-    reversed_num_attention_heads = list(reversed(num_attention_heads))
-
-    output_channel = reversed_block_out_channels[0]
-    for i, up_block_type in enumerate(up_block_types):
-        prev_output_channel = output_channel
-        output_channel = reversed_block_out_channels[i]
-
-        if unet.use_reference_module and i > 0:
-            unet.reference_modules_up.append(
-                SKReferenceAttention(
-                    in_channels=prev_output_channel,
-                    num_attention_heads=reversed_num_attention_heads[i],
-                    num_positional_embeddings=64*2
-                )
-            )
-
-    return unet

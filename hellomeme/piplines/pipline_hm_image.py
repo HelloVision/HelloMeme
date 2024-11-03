@@ -9,7 +9,6 @@
 adapted from: https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion_img2img.py
 """
 
-import os.path as osp
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
@@ -24,7 +23,7 @@ from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 
 from ..models import HMDenoising3D, HMControlNet
-from hellomeme.models.hm_blocks import HMReferenceAdapter
+from ..models import HMReferenceAdapter
 
 class HMImagePipeline(StableDiffusionImg2ImgPipeline):
     def caryomitosis(self,):
