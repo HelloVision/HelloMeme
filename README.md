@@ -44,6 +44,27 @@ To install the latest version of PyTorch, please refer to the official [PyTorch]
 pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
 ```
 
+### 3. Install for Gradio App
+
+We recommend setting up the environment with conda.
+
+```bash
+git clone https://github.com/HelloVision/HelloMeme.git
+cd HelloMeme
+
+# create env using conda
+conda create -n HelloMeme python=3.9
+conda activate HelloMeme
+pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
+pip install gradio
+conda install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch -c nvidia << or use your cuda version, find with nvcc --version
+
+run python app.py
+
+```
+
+
+
 > [!IMPORTANT]  
 > 
 > Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.31.0**.
