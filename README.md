@@ -44,31 +44,6 @@ To install the latest version of PyTorch, please refer to the official [PyTorch]
 pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
 ```
 
-### 3. Install for Gradio App
-
-We recommend setting up the environment with conda.
-
-```bash
-git clone https://github.com/HelloVision/HelloMeme.git
-cd HelloMeme
-
-# create env using conda
-conda create -n HelloMeme python=3.9
-conda activate HelloMeme
-pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
-pip install gradio
-pip install imageio
-pip install scipy
-pip install accelerate
-conda install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch -c nvidia ## or use your cuda version, find with nvcc --version
-
-run python app.py
-
-```
-
-After run the app, all models will be downloaded automatic into /models folder.
-
-
 > [!IMPORTANT]  
 > 
 > Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.31.0**.
@@ -85,6 +60,32 @@ cd HelloMeme
 python inference_image.py # for image generation
 python inference_video.py # for video generation
 ```
+
+### 5. Install for Gradio App
+
+We recommend setting up the environment with conda.
+
+```bash
+git clone https://github.com/HelloVision/HelloMeme.git
+cd HelloMeme
+
+# create env using conda
+conda create -n HelloMeme python=3.9
+conda activate HelloMeme
+pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
+pip install gradio
+pip install imageio[ffmpeg]
+pip install scipy
+pip install accelerate
+conda install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch -c nvidia ## or use your cuda version, find with nvcc --version
+
+run python app.py
+
+```
+
+After run the app, all models will be downloaded.
+Longer the driver video, more VRAM will need. 
+
 
 ## Examples
 
