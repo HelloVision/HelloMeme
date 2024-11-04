@@ -57,12 +57,16 @@ conda create -n HelloMeme python=3.9
 conda activate HelloMeme
 pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
 pip install gradio
-conda install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch -c nvidia << or use your cuda version, find with nvcc --version
+pip install imageio
+pip install scipy
+pip install accelerate
+conda install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch -c nvidia ## or use your cuda version, find with nvcc --version
 
 run python app.py
 
 ```
 
+After run the app, all models will be downloaded automatic into /models folder.
 
 
 > [!IMPORTANT]  
