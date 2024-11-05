@@ -81,7 +81,7 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
     ff_cat_video_and_audio(save_path, drive_video_path, osp.splitext(save_path)[0] + '_audio.mp4')
 
 if __name__ == '__main__':
-    ref_img_path = r"data/reference_images/trump1.jpg"
+    ref_img_path = r"data/reference_images/trump.jpg"
     drive_video_path = r"data/drive_videos/jue.mp4"
     save_dir = r'data/results'
 
