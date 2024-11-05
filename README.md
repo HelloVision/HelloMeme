@@ -27,7 +27,7 @@
 ## 🔆 New Features/Updates
 
 - ☐ [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) for ablation experiments.
-- ✅ `11/5/2024`  `[ComfyUI](https://github.com/HelloVision/ComfyUI_HelloMeme)` interface for HelloMeme.
+- ✅ `11/5/2024`  [`ComfyUI`](https://github.com/HelloVision/ComfyUI_HelloMeme) interface for HelloMeme.
 - ✅ `11/1/2024` Release the code for the core functionalities..
 
 ## Introduction
