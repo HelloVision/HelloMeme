@@ -20,7 +20,7 @@ from hellomeme.utils import (face_params_to_tensor,
                              ff_cat_video_and_audio,
                              ff_change_fps,
                              load_unet_from_safetensors)
-from hellomeme.piplines import HMVideoPipeline
+from hellomeme.pipeline import HMVideoPipeline
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
 from transformers import CLIPVisionModelWithProjection
 
