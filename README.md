@@ -18,6 +18,7 @@
     <a href='https://songkey.github.io/hellomeme/'><img src='https://img.shields.io/badge/Project-HomePage-Green'></a>
     <a href='https://arxiv.org/pdf/2410.22901'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a>
     <a href='https://huggingface.co/songkey'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a>
+    <a href='https://github.com/HelloVision/ComfyUI_HelloMeme'><img src='https://img.shields.io/badge/ComfyUI-UI-blue'></a>
 </div>
 
 <p align="center">
@@ -95,8 +96,8 @@ The input for the image generation script `inference_image.py` consists of a ref
 
 <table>
     <tr>
-        <td><center><img src="./data/reference_images/harris.jpg" width="256"> <br> Reference Image</center></td>
-        <td ><center><img src="./data/drive_images/yao.jpg" height="256"> <br> Drive Image</center> </td>
+        <td><img src="./data/reference_images/harris.jpg" width="256" height="256"> <br> Reference Image</td>
+        <td ><img src="./data/drive_images/yao.jpg" width="192" height="256"> <br> Drive Image </td>
     </tr>
 </table>
 
@@ -104,8 +105,8 @@ The output of the image generation script is shown below:
 
 <table>
     <tr>
-        <td><center><img src="./data/harris_yao.jpg" width="256" height="256"> <br> Based on SD1.5 </center></td>
-        <td ><center><img src="./data/harris_yao_toon.jpg" height="256" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a> </center> </td>
+        <td><img src="./data/harris_yao.jpg" width="256" height="256"> <br> Based on SD1.5 </td>
+        <td ><img src="./data/harris_yao_toon.jpg" height="256" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a>  </td>
     </tr>
 </table>
 
@@ -115,8 +116,8 @@ The input for the video generation script `inference_video.py` consists of a ref
 
 <table>
     <tr>
-        <td><center><img src="./data/reference_images/trump.jpg" width="256"> <br> Reference Image</center></td>
-        <td ><center><img src="./data/jue.gif" height="256"> <br> Drive Video </center> </td>
+        <td><img src="./data/reference_images/trump.jpg" width="256" height="256"> <br> Reference Image</td>
+        <td ><img src="./data/jue.gif" width="256" height="256"> <br> Drive Video  </td>
     </tr>
 </table>
 
@@ -124,8 +125,8 @@ The output of the video generation script is shown below:
 
 <table>
     <tr>
-        <td><center><img src="./data/trump_jue.gif" width="256"> <br> Based on <a href="https://civitai.com/models/25694/epicrealism">epicrealism</a> </center></td>
-        <td ><center><img src="./data/trump_jue-toon.gif" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a></center> </td>
+        <td><img src="./data/trump_jue.gif" width="256" height="256"> <br> Based on <a href="https://civitai.com/models/25694/epicrealism">epicrealism</a> </td>
+        <td ><img src="./data/trump_jue-toon.gif" width="256" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a> </td>
     </tr>
 </table>
 
