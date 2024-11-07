@@ -49,7 +49,7 @@ To install the latest version of PyTorch, please refer to the official [PyTorch]
 ### 3. Install dependencies
 
 ```bash
-pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
+pip install diffusers transformers einops scipy opencv-python tqdm pillow onnxruntime onnx safetensors accelerate peft
 ```
 
 > [!IMPORTANT]  
@@ -74,26 +74,14 @@ python inference_video.py # for video generation
 We recommend setting up the environment with conda.
 
 ```bash
-git clone https://github.com/HelloVision/HelloMeme.git
-cd HelloMeme
-
-# create env using conda
-conda create -n HelloMeme python=3.9
-conda activate HelloMeme
-pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
 pip install gradio
 pip install imageio[ffmpeg]
-pip install scipy
-pip install accelerate
-conda install pytorch torchvision torchaudio cudatoolkit=11.8 -c pytorch -c nvidia ## or use your cuda version, find with nvcc --version
 
 run python app.py
-
 ```
 
 After run the app, all models will be downloaded.
 Longer the driver video, more VRAM will need. 
-
 
 ## Examples
 
