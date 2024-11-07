@@ -36,10 +36,17 @@ This repository contains the official code implementation of the paper [`HelloMe
 
 ## Getting Started
 
-### 1. Install PyTorch and FFmpeg
+### 1. Create a Conda Environment
+
+```bash
+conda create -n hellomeme python=3.10.11
+conda activate hellomeme
+```
+
+### 2. Install PyTorch and FFmpeg
 To install the latest version of PyTorch, please refer to the official [PyTorch](https://pytorch.org/get-started/locally/) website for detailed installation instructions. Additionally, the code will invoke the system's ffmpeg command for video and audio editing, so the runtime environment must have ffmpeg pre-installed. For installation guidance, please refer to the official [FFmpeg](https://ffmpeg.org/) website.
 
-### 2. Install dependencies
+### 3. Install dependencies
 
 ```bash
 pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime onnx safetensors
@@ -49,20 +56,20 @@ pip install diffusers transformers einops opencv-python tqdm pillow onnxruntime 
 > 
 > Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.31.0**.
 
-### 3. Clone the repository
+### 4. Clone the repository
 
 ```bash
 git clone https://github.com/HelloVision/HelloMeme
 cd HelloMeme
 ```
 
-### 4. Run the code
+### 5. Run the code
 ```bash
 python inference_image.py # for image generation
 python inference_video.py # for video generation
 ```
 
-### 5. Install for Gradio App
+### 6. Install for Gradio App
 
 We recommend setting up the environment with conda.
 

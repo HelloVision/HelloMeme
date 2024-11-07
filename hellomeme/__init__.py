@@ -8,5 +8,5 @@
 @Desc   : 
 """
 
-from .piplines import HMVideoPipeline, HMImagePipeline
+from .pipelines import HMVideoPipeline, HMImagePipeline
 from .models import HMDenoising3D, HMDenoisingMotion, HMControlNet, HMReferenceAdapter
