@@ -7,7 +7,7 @@ import cv2
 import imageio
 from PIL import Image
 from hellomeme.utils import (face_params_to_tensor, get_drive_params, ff_cat_video_and_audio, load_unet_from_safetensors)
-from hellomeme.piplines import HMVideoPipeline
+from hellomeme.pipelines import HMVideoPipeline
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
 from transformers import CLIPVisionModelWithProjection
 
