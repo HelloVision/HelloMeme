@@ -26,7 +26,7 @@ engines = dict(
 
 pipline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
 pipline.caryomitosis()
-pipline.insert_hm_modules()
+pipline.insert_hm_modules(device=device, dtype=dtype)
 engines['pipline'] = pipline.to(device=device, dtype=dtype)
 
 def sanitize_filename(filename):
@@ -66,10 +66,17 @@ def inference_video(ref_img, drive_video, trans_ratio=0.0):
     # Use ref_image as a NumPy array for OpenCV operations
     ref_rot, ref_trans = engines['h3dmm'].forward_params(ref_image, ref_landmark)
 
+    cap = cv2.VideoCapture(drive_video)
+    frame_list = []
+    ret, frame = cap.read()
+    while ret:
+        frame_list.append(frame.copy())
+        ret, frame = cap.read()
+
     engines['face_aligner'].reset_track()
     (drive_face_parts, drive_coeff, drive_rot, drive_trans) = get_drive_params(
         engines['face_aligner'], engines['h3dmm'], engines['harkit_bs'],
-        video_path=drive_video,
+        frame_list=frame_list,
         save_size=save_size
     )
 

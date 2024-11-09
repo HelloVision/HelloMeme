@@ -46,10 +46,17 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
         return
     ref_rot, ref_trans = engines['h3dmm'].forward_params(ref_image, ref_landmark)
 
+    cap = cv2.VideoCapture(drive_video_path_fps15)
+    frame_list = []
+    ret, frame = cap.read()
+    while ret:
+        frame_list.append(frame.copy())
+        ret, frame = cap.read()
+
     engines['face_aligner'].reset_track()
     (drive_face_parts, drive_coeff, drive_rot, drive_trans) = get_drive_params(engines['face_aligner'],
                                                              engines['h3dmm'], engines['harkit_bs'],
-                                                             video_path=drive_video_path_fps15,
+                                                             frame_list=frame_list,
                                                              save_size=save_size)
 
     face_parts_embedding, control_heatmaps = face_params_to_tensor(
@@ -59,9 +66,9 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
         save_size=512, trans_ratio=trans_ratio)
 
     drive_params = dict(
-        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype),
-        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype),
-        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype),
+        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),
+        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype, device='cpu'),
+        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu'),
     )
 
     res_frames = pipline(
@@ -110,7 +117,7 @@ if __name__ == '__main__':
     ### lora
     # pipline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
 
-    pipline.insert_hm_modules()
+    pipline.insert_hm_modules(dtype=dtype, device=device)
     engines['pipline'] = pipline.to(device=device, dtype=dtype)
 
     save_path = osp.join(save_dir, f'{ref_basname}_{drive_basename}.mp4')

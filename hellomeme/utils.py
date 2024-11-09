@@ -222,18 +222,11 @@ def det_landmarks(face_aligner, frame_list, save_size=(512, 512), reset=False):
     face_aligner.reset_track()
     return save_frame_list, save_landmark_list
 
-def get_drive_params(face_aligner, h3dmm, harkit_bs, video_path, save_size):
-    cap = cv2.VideoCapture(video_path)
-    frame_list = []
-    ret, frame = cap.read()
-    while ret:
-        frame_list.append(frame.copy())
-        ret, frame = cap.read()
-
+def get_drive_params(face_aligner, h3dmm, harkit_bs, frame_list, save_size, align=True):
     frame_num = len(frame_list)
     frame_list, landmark_list = det_landmarks(face_aligner, frame_list, save_size=(512, 512), reset=False)
     assert len(frame_list) == frame_num
-    return get_face_params(h3dmm, harkit_bs, frame_list, landmark_list, save_size=save_size)
+    return get_face_params(h3dmm, harkit_bs, frame_list, landmark_list, save_size=save_size, align=align)
 
 def crop_and_resize(frames, landmarks, save_size=512, crop=True):
     H, W = frames[0].shape[:2]

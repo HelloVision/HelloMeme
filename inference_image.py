@@ -58,12 +58,12 @@ def inference_image(engines, ref_img_path, drive_img_path, seed=0):
                           save_size=512, trans_ratio=0.0)
 
     drive_params = dict(
-        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device=device),
-        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype, device=device),
-        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype, device=device),
+        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),
+        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype, device='cpu'),
+        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu'),
     )
 
-    generator = torch.Generator(device).manual_seed(seed)
+    generator = torch.Generator().manual_seed(seed)
 
     result_img = pipeline(
         prompt=[text],
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     ### lora
     # pipeline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
 
-    pipeline.insert_hm_modules()
+    pipeline.insert_hm_modules(dtype=dtype, device=device)
     engines['pipeline'] = pipeline.to(device=device, dtype=dtype)
 
     result_image = inference_image(engines, ref_img_path, drive_img_path, seed=1024)
