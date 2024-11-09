@@ -283,6 +283,8 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                 pre_latents.append(pred_latent.cpu())
                 control_latents.append(dicts_to_device([control_latent], device='cpu')[0])
 
+                progress_bar.update()
+
         pre_latents = torch.cat(pre_latents, dim=2)
 
         if post_pad_num > 0:
