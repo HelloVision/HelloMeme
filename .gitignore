@@ -2,6 +2,9 @@
 *.pyd
 *.pth
 *.pkl
+*.mp4
+*.jpg
+*.png
 *_fps15.mp4
 .idea/
 data/results

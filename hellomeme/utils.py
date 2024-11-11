@@ -8,8 +8,10 @@
 @Desc   : 
 """
 
+import os
 import cv2
 import numpy as np
+from tqdm import tqdm
 import torch
 from PIL import Image
 import subprocess
@@ -18,6 +20,27 @@ from .tools.utils import transform_points
 from diffusers.pipelines.stable_diffusion.convert_from_ckpt import convert_ldm_unet_checkpoint
 
 from safetensors import safe_open
+
+def merge_dicts(dictl, dictr, wl=0.5):
+    res = {}
+    for k in dictl.keys():
+        res[k] = dictl[k] * wl + dictr[k] * (1-wl)
+    return res
+
+def cat_dicts(dicts, dim=0):
+    res = {}
+    for k in dicts[0].keys():
+        res[k] = torch.cat([d[k].clone() for d in dicts], dim=dim)
+    return res
+
+def dicts_to_device(dicts, device):
+    ret = []
+    for d in dicts:
+        tmpd = {}
+        for k in d.keys():
+            tmpd[k] = d[k].clone().to(device)
+        ret.append(tmpd)
+    return ret
 
 def load_safetensors(model_path):
     tensors = {}
@@ -160,11 +183,16 @@ def get_face_params(h3dmm, harkit_bs, frames, landmarks, save_size=(512, 512), a
     rot_list = []
     trans_list = []
     arkit_bs_list = []
-    for landmark, frame in zip(new_landmarks, new_frames):
-        drive_rot, drive_trans = h3dmm.forward_params(frame, landmark)
-        rot_list.append(drive_rot)
-        trans_list.append(drive_trans)
-        arkit_bs_list.append(harkit_bs.forward(frame, landmark))
+
+    with tqdm(total=len(new_landmarks)) as pbar:
+        for landmark, frame in zip(new_landmarks, new_frames):
+            drive_rot, drive_trans = h3dmm.forward_params(frame, landmark)
+            rot_list.append(drive_rot)
+            trans_list.append(drive_trans)
+            arkit_bs_list.append(harkit_bs.forward(frame, landmark))
+
+            pbar.set_description('RT & ARKIT')
+            pbar.update()
     drive_coeff = torch.from_numpy(np.stack(arkit_bs_list, axis=0))
     return face_parts, drive_coeff, rot_list, trans_list
 
@@ -176,10 +204,18 @@ def face_params_to_tensor(clip_encoder, h3dmm, face_parts, drive_rot, drive_tran
     face_parts = torch.stack(face_parts_list, dim=2)
 
     face_parts_tensor = rearrange(face_parts, "c f p h w -> (f p) c h w")
-    face_parts_embedding = clip_encoder(face_parts_tensor.to(device=clip_encoder.device, dtype=clip_encoder.dtype)).image_embeds
+    face_parts_embedding_list = []
+    with tqdm(total=face_parts_tensor.size(0)) as pbar:
+        for i in range(0, face_parts_tensor.size(0)):
+            face_parts_embedding = clip_encoder(face_parts_tensor[i:i+1].to(device=clip_encoder.device, dtype=clip_encoder.dtype)).image_embeds
+            face_parts_embedding_list.append(face_parts_embedding.cpu())
+            pbar.set_description('CLIP IMAGE ENCODER')
+            pbar.update()
+
+    face_parts_embedding = torch.cat(face_parts_embedding_list, dim=0)
     face_parts_embedding = rearrange(face_parts_embedding,
                                      "(f p) c -> f p c",
-                                     f=face_parts.size(2)).cpu()
+                                     f=face_parts.size(2))
 
     control_list = []
     control_show_list = []
@@ -197,26 +233,32 @@ def face_params_to_tensor(clip_encoder, h3dmm, face_parts, drive_rot, drive_tran
 def det_landmarks(face_aligner, frame_list, save_size=(512, 512), reset=False):
     rect_list = []
     new_frame_list = []
-    for frame in frame_list:
-        frame = cv2.resize(frame, save_size)
-        faces = face_aligner.forward(frame, reset=reset)
-        if len(faces) > 0:
-            face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                    x['face_rect'][3] - x['face_rect'][1]))[-1]
-            rect_list.append(face['face_rect'])
-            new_frame_list.append(frame)
+    with tqdm(total=len(frame_list)) as pbar:
+        for frame in frame_list:
+            frame = cv2.resize(frame, save_size)
+            faces = face_aligner.forward(frame, reset=reset)
+            if len(faces) > 0:
+                face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
+                        x['face_rect'][3] - x['face_rect'][1]))[-1]
+                rect_list.append(face['face_rect'])
+                new_frame_list.append(frame)
+            pbar.set_description('DET stage1')
+            pbar.update()
 
     face_aligner.reset_track()
     save_frame_list = []
     save_landmark_list = []
-    for frame, rect in zip(new_frame_list, rect_list):
-        faces = face_aligner.forward(frame, pre_rect=rect, reset=reset)
-        if len(faces) > 0:
-            face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                    x['face_rect'][3] - x['face_rect'][1]))[-1]
-            landmarks = face['pre_kpt_222']
-            save_frame_list.append(frame)
-            save_landmark_list.append(landmarks)
+    with tqdm(total=len(new_frame_list)) as pbar:
+        for frame, rect in zip(new_frame_list, rect_list):
+            faces = face_aligner.forward(frame, pre_rect=rect, reset=reset)
+            if len(faces) > 0:
+                face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
+                        x['face_rect'][3] - x['face_rect'][1]))[-1]
+                landmarks = face['pre_kpt_222']
+                save_frame_list.append(frame)
+                save_landmark_list.append(landmarks)
+            pbar.set_description('DET stage2')
+            pbar.update()
     save_landmark_list = np.stack(save_landmark_list, axis=0).astype(np.float16)
 
     face_aligner.reset_track()
@@ -366,3 +408,13 @@ def ff_change_fps(input_video, output_video, fps=15):
     ]
 
     subprocess.run(cmd)
+
+def load_data_list(data_dir, post_fix='.pickle;.txt'):
+    post_fixs = post_fix.split(';')
+    ret_list = []
+    for root, dirnames, filenames in os.walk(data_dir):
+            for name in filenames:
+                if os.path.splitext(name)[1] in post_fixs and not name.startswith('.'):
+                    data_path = os.path.join(root, name)
+                    ret_list.append(data_path)
+    return ret_list

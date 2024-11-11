@@ -8,5 +8,6 @@
 @Desc   : 
 """
 
-from .pipline_hm_video import HMVideoPipeline
+from .pipline_hm_video_simple import HMVideoSimplePipeline
 from .pipline_hm_image import HMImagePipeline
+from .pipline_hm_video import HMVideoPipeline
