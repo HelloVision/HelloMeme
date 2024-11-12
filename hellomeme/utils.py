@@ -17,6 +17,7 @@ from PIL import Image
 import subprocess
 from einops import rearrange
 from .tools.utils import transform_points
+from .tools.hello_3dmm import get_project_points_rect
 from diffusers.pipelines.stable_diffusion.convert_from_ckpt import convert_ldm_unet_checkpoint
 
 from safetensors import safe_open
@@ -196,7 +197,7 @@ def get_face_params(h3dmm, harkit_bs, frames, landmarks, save_size=(512, 512), a
     drive_coeff = torch.from_numpy(np.stack(arkit_bs_list, axis=0))
     return face_parts, drive_coeff, rot_list, trans_list
 
-def face_params_to_tensor(clip_encoder, h3dmm, face_parts, drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=0.0):
+def face_params_to_tensor(clip_encoder, face_parts):
     face_parts_list = []
     for tmp_face_parts_list in face_parts:
         tmp_face_parts_list = [clip_preprocess_from_bgr(x).unsqueeze(1) for x in tmp_face_parts_list]
@@ -216,19 +217,17 @@ def face_params_to_tensor(clip_encoder, h3dmm, face_parts, drive_rot, drive_tran
     face_parts_embedding = rearrange(face_parts_embedding,
                                      "(f p) c -> f p c",
                                      f=face_parts.size(2))
+    return face_parts_embedding
 
+def gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=0.0):
     control_list = []
-    control_show_list = []
     for rot, trans in zip(drive_rot, drive_trans):
-        rect = h3dmm.get_project_points_rect(rot, ref_trans + (trans - drive_trans[0]) * trans_ratio, save_size, save_size)
+        rect = get_project_points_rect(rot, ref_trans + (trans - drive_trans[0]) * trans_ratio, save_size, save_size)
         control_heatmap = draw_skl_by_rect(save_size, rect)
 
-        control_show_list.append(control_heatmap.copy())
         control_heatmap = image_preprocess(control_heatmap, (save_size, save_size))
         control_list.append(control_heatmap)
-    control_heatmaps = torch.stack(control_list, dim=1)
-
-    return face_parts_embedding, control_heatmaps
+    return torch.stack(control_list, dim=1)
 
 def det_landmarks(face_aligner, frame_list, save_size=(512, 512), reset=False):
     rect_list = []

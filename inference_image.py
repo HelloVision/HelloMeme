@@ -12,12 +12,12 @@ import cv2
 import numpy as np
 from PIL import Image
 import torch
-from hellomeme.utils import get_face_params, face_params_to_tensor, load_unet_from_safetensors
+from hellomeme.utils import get_face_params, face_params_to_tensor, gen_control_heatmaps, load_unet_from_safetensors
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
 from hellomeme.pipelines import HMImagePipeline
 from transformers import CLIPVisionModelWithProjection
 
-def inference_image(engines, ref_img_path, drive_img_path, seed=0):
+def inference_image(engines, ref_img_path, drive_img_path, seed=0, trans_ratio=0.0):
     save_size = 512
     text = "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
 
@@ -52,10 +52,8 @@ def inference_image(engines, ref_img_path, drive_img_path, seed=0):
                                                                    [drive_image], [drive_landmark],
                                                                    save_size=(512, 512), align=False)
 
-    face_parts_embedding, control_heatmaps = face_params_to_tensor(engines['clip_image_encoder'], engines['h3dmm'],
-                          drive_face_parts,
-                          drive_rot, drive_trans, ref_trans,
-                          save_size=512, trans_ratio=0.0)
+    face_parts_embedding = face_params_to_tensor(engines['clip_image_encoder'], drive_face_parts)
+    control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
 
     drive_params = dict(
         face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),

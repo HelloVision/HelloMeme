@@ -6,7 +6,11 @@ import numpy as np
 import cv2
 import imageio
 from PIL import Image
-from hellomeme.utils import (face_params_to_tensor, get_drive_params, ff_cat_video_and_audio, load_unet_from_safetensors)
+from hellomeme.utils import (face_params_to_tensor,
+                             gen_control_heatmaps,
+                             get_drive_params,
+                             ff_cat_video_and_audio
+                             )
 from hellomeme.pipelines import HMVideoPipeline
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
 from transformers import CLIPVisionModelWithProjection
@@ -80,21 +84,13 @@ def inference_video(ref_img, drive_video, trans_ratio=0.0):
         save_size=save_size
     )
 
-    # Ensure tensors are moved to the correct device
-    face_parts_embedding, control_heatmaps = face_params_to_tensor(
-        engines['clip_image_encoder'], engines['h3dmm'],
-        drive_face_parts,
-        drive_rot, drive_trans, ref_trans,
-        save_size=512, trans_ratio=trans_ratio)
-    
-    face_parts_embedding = face_parts_embedding.to(device=device, dtype=dtype)
-    control_heatmaps = control_heatmaps.to(device=device, dtype=dtype)
-    drive_coeff = drive_coeff.to(device=device, dtype=dtype)
+    face_parts_embedding = face_params_to_tensor(engines['clip_image_encoder'], drive_face_parts)
+    control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
 
     drive_params = dict(
-        face_parts=face_parts_embedding.unsqueeze(0),
-        drive_coeff=drive_coeff.unsqueeze(0),
-        condition=control_heatmaps.unsqueeze(0),
+        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),
+        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype, device='cpu'),
+        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu'),
     )
 
     # Generate frames in pipeline

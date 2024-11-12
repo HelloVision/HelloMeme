@@ -17,6 +17,7 @@ from PIL import Image
 import torch
 from hellomeme.utils import (face_params_to_tensor,
                              get_drive_params,
+                             gen_control_heatmaps,
                              ff_cat_video_and_audio,
                              ff_change_fps,
                              load_unet_from_safetensors)
@@ -59,11 +60,8 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
                                                              frame_list=frame_list,
                                                              save_size=save_size)
 
-    face_parts_embedding, control_heatmaps = face_params_to_tensor(
-        engines['clip_image_encoder'], engines['h3dmm'],
-        drive_face_parts,
-        drive_rot, drive_trans, ref_trans,
-        save_size=512, trans_ratio=trans_ratio)
+    face_parts_embedding = face_params_to_tensor(engines['clip_image_encoder'], drive_face_parts)
+    control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
 
     drive_params = dict(
         face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),

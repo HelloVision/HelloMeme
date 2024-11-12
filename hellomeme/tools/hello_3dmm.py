@@ -73,68 +73,68 @@ class Hello3DMMPred(object):
                                                         focal_length=self.used_focal_len)
         return angles, crop_global_transl[np.newaxis, :]
 
-    def compute_rotation_matrix(self, angles):
-        n_b = angles.shape[0]
-        sinx = np.sin(angles[:, 0])
-        siny = np.sin(angles[:, 1])
-        sinz = np.sin(angles[:, 2])
-        cosx = np.cos(angles[:, 0])
-        cosy = np.cos(angles[:, 1])
-        cosz = np.cos(angles[:, 2])
-        rotXYZ = np.eye(3).reshape(1, 3, 3).repeat(n_b*3, 0).reshape(3, n_b, 3, 3)
-        rotXYZ[0, :, 1, 1] = cosx
-        rotXYZ[0, :, 1, 2] = -sinx
-        rotXYZ[0, :, 2, 1] = sinx
-        rotXYZ[0, :, 2, 2] = cosx
-        rotXYZ[1, :, 0, 0] = cosy
-        rotXYZ[1, :, 0, 2] = siny
-        rotXYZ[1, :, 2, 0] = -siny
-        rotXYZ[1, :, 2, 2] = cosy
-        rotXYZ[2, :, 0, 0] = cosz
-        rotXYZ[2, :, 0, 1] = -sinz
-        rotXYZ[2, :, 1, 0] = sinz
-        rotXYZ[2, :, 1, 1] = cosz
-        rotation = np.matmul(np.matmul(rotXYZ[2], rotXYZ[1]), rotXYZ[0])
-        return rotation.transpose(0, 2, 1)
+def compute_rotation_matrix(angles):
+    n_b = angles.shape[0]
+    sinx = np.sin(angles[:, 0])
+    siny = np.sin(angles[:, 1])
+    sinz = np.sin(angles[:, 2])
+    cosx = np.cos(angles[:, 0])
+    cosy = np.cos(angles[:, 1])
+    cosz = np.cos(angles[:, 2])
+    rotXYZ = np.eye(3).reshape(1, 3, 3).repeat(n_b*3, 0).reshape(3, n_b, 3, 3)
+    rotXYZ[0, :, 1, 1] = cosx
+    rotXYZ[0, :, 1, 2] = -sinx
+    rotXYZ[0, :, 2, 1] = sinx
+    rotXYZ[0, :, 2, 2] = cosx
+    rotXYZ[1, :, 0, 0] = cosy
+    rotXYZ[1, :, 0, 2] = siny
+    rotXYZ[1, :, 2, 0] = -siny
+    rotXYZ[1, :, 2, 2] = cosy
+    rotXYZ[2, :, 0, 0] = cosz
+    rotXYZ[2, :, 0, 1] = -sinz
+    rotXYZ[2, :, 1, 0] = sinz
+    rotXYZ[2, :, 1, 1] = cosz
+    rotation = np.matmul(np.matmul(rotXYZ[2], rotXYZ[1]), rotXYZ[0])
+    return rotation.transpose(0, 2, 1)
 
-    def rigid_transform(self, vs, rot, trans):
-        vs_r = np.matmul(vs, rot)
-        vs_t = vs_r + trans.reshape(-1, 1, 3)
-        return vs_t
+def rigid_transform(vs, rot, trans):
+    vs_r = np.matmul(vs, rot)
+    vs_t = vs_r + trans.reshape(-1, 1, 3)
+    return vs_t
 
-    def perspective_projection_points(self, points, image_w, image_h, used_focal_len):
-        batch_size = points.shape[0]
-        K = np.zeros([batch_size, 3, 3])
-        K[:, 0, 0] = used_focal_len
-        K[:, 1, 1] = used_focal_len
-        K[:, 2, 2] = 1.
-        K[:, 0, 2] = image_w * 0.5
-        K[:, 1, 2] = image_h * 0.5
+def perspective_projection_points(points, image_w, image_h, used_focal_len):
+    batch_size = points.shape[0]
+    K = np.zeros([batch_size, 3, 3])
+    K[:, 0, 0] = used_focal_len
+    K[:, 1, 1] = used_focal_len
+    K[:, 2, 2] = 1.
+    K[:, 0, 2] = image_w * 0.5
+    K[:, 1, 2] = image_h * 0.5
 
-        reverse_z = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]])[np.newaxis, :, :].repeat(batch_size, 0)
+    reverse_z = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]])[np.newaxis, :, :].repeat(batch_size, 0)
 
-        # Transform points
-        aug_projection = np.matmul(points, reverse_z)
-        aug_projection = np.matmul(aug_projection, K.transpose((0, 2, 1)))
+    # Transform points
+    aug_projection = np.matmul(points, reverse_z)
+    aug_projection = np.matmul(aug_projection, K.transpose((0, 2, 1)))
 
-        # Apply perspective distortion
-        projected_points = aug_projection[:, :, :2] / aug_projection[:, :, 2:]
-        return projected_points
+    # Apply perspective distortion
+    projected_points = aug_projection[:, :, :2] / aug_projection[:, :, 2:]
+    return projected_points
 
-    def get_project_points_rect(self, angle, trans, image_w, image_h):
-        vs = np.array(
-            [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]],
-        ) * 0.05
-        vs = vs[np.newaxis, :, :]
+def get_project_points_rect(angle, trans, image_w, image_h, used_focal_len=4828.598903609935):
+    vs = np.array(
+        [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]],
+    ) * 0.05
+    vs = vs[np.newaxis, :, :]
 
-        rotation = self.compute_rotation_matrix(angle)
-        translation = trans.copy()
-        translation[0, 2] *= 0.05
+    rotation = compute_rotation_matrix(angle)
+    translation = trans.copy()
+    translation[0, 2] *= 0.05
 
-        vs_t = self.rigid_transform(vs, rotation, translation)
+    vs_t = rigid_transform(vs, rotation, translation)
 
-        project_points = self.perspective_projection_points(vs_t, image_w, image_h, self.used_focal_len*0.05)
-        project_points = np.stack([project_points[:, :, 0], image_h - project_points[:, :, 1]], axis=2)
+    project_points = perspective_projection_points(vs_t, image_w, image_h, used_focal_len*0.05)
+    project_points = np.stack([project_points[:, :, 0], image_h - project_points[:, :, 1]], axis=2)
 
-        return project_points[0]
+    return project_points[0]
 
