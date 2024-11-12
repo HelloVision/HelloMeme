@@ -27,13 +27,17 @@ from ..utils import dicts_to_device, cat_dicts
 
 
 class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
-    def caryomitosis(self,):
+    def caryomitosis(self, patch_frames=12, **kwargs):
         if hasattr(self, "unet_ref"):
             del self.unet_ref
         self.unet_ref = HMDenoising3D.from_unet2d(self.unet)
 
-        self.num_frames = 16
-        adapter = MotionAdapter.from_pretrained("songkey/hm_animatediff", torch_dtype=torch.float16)
+        if patch_frames >= 14:
+            self.num_frames = 16
+            adapter = MotionAdapter.from_pretrained("songkey/hm_animatediff", torch_dtype=torch.float16)
+        else:
+            self.num_frames = 12
+            adapter = MotionAdapter.from_pretrained("songkey/hm_animatediff_frame12", torch_dtype=torch.float16)
         unet = HMDenoisingMotion.from_unet2d(unet=self.unet, motion_adapter=adapter, load_weights=True)
         # todo: 不够优雅
         del self.unet

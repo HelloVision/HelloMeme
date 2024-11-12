@@ -26,7 +26,7 @@ from ..models import HMDenoising3D, HMControlNet
 from ..models import HMReferenceAdapter
 
 class HMImagePipeline(StableDiffusionImg2ImgPipeline):
-    def caryomitosis(self,):
+    def caryomitosis(self, **kwargs):
         if not hasattr(self, "unet_ref"):
             self.unet_ref = HMDenoising3D.from_unet2d(self.unet)
         if not isinstance(self.unet, HMDenoising3D):
@@ -126,7 +126,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         text_encoder_lora_scale = (
             self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
         )
-        print('device:', device)
+
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,

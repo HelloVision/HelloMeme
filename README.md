@@ -28,6 +28,7 @@
 ## 🔆 New Features/Updates
 
 - ☐ [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) for ablation experiments.
+- ✅ `11/12/2024` Added a newly fine-tuned version of [`Animatediff`](https://huggingface.co/songkey/hm_animatediff_frame12) with a patch size of 12, which uses less VRAM (Tested on 2080Ti).
 - ✅ `11/5/2024`  [`ComfyUI`](https://github.com/HelloVision/ComfyUI_HelloMeme) interface for HelloMeme.
 - ✅ `11/1/2024` Release the code for the core functionalities..
 
@@ -135,15 +136,16 @@ The output of the video generation script is shown below:
 
 Our models are all hosted on [🤗](https://huggingface.co/songkey), and the startup script will download them automatically. The specific model information is as follows:
 
-| model | size  | url  | Info                             |
-|-------|-------|------|----------------------------------|
-| songkey/hm_reference  | 312M  | <a href='https://huggingface.co/songkey/hm_reference'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the ReferenceAdapter module |
-| songkey/hm_control  | 149M  | <a href='https://huggingface.co/songkey/hm_control'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the HMControlNet module |
-| songkey/hm_animatediff  | 835M  | <a href='https://huggingface.co/songkey/hm_animatediff'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the Turned Animatediff |
-| hello_3dmm.onnx  | 311M  | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | For face RT Extractor            |
-| hello_arkit_blendshape.onnx | 9.11M | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Extract ARKit blendshape parameters |
-| hello_face_det.onnx | 317K  | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Face Detector                    |
-| hello_face_landmark.onnx | 2.87M | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Face Landmarks (222 points)      |
+| model | size  | url  | Info                                                  |
+|-------|-------|------|-------------------------------------------------------|
+| songkey/hm_reference  | 312M  | <a href='https://huggingface.co/songkey/hm_reference'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the ReferenceAdapter module            |
+| songkey/hm_control  | 149M  | <a href='https://huggingface.co/songkey/hm_control'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the HMControlNet module                |
+| songkey/hm_animatediff  | 835M  | <a href='https://huggingface.co/songkey/hm_animatediff'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the Turned Animatediff (patch size 16) |
+| songkey/hm_animatediff_frame12 | 835M  | <a href='https://huggingface.co/songkey/hm_animatediff_frame12'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the Turned Animatediff (patch size 12) |
+| hello_3dmm.onnx  | 311M  | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | For face RT Extractor                                 |
+| hello_arkit_blendshape.onnx | 9.11M | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Extract ARKit blendshape parameters                   |
+| hello_face_det.onnx | 317K  | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Face Detector                                         |
+| hello_face_landmark.onnx | 2.87M | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Face Landmarks (222 points)                           |
 
 Our pipeline also supports loading stylized base models (safetensors). For video generation tasks, using some customized models for portrait generation, such as [**Realistic Vision V6.0 B1**](https://civitai.com/models/4201/realistic-vision-v60-b1), can produce better results. You can download checkpoints and loras into the directories `pretrained_models/` and `pretrained_models/loras/`, respectively.
 

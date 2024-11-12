@@ -26,7 +26,7 @@ from ..models import HMReferenceAdapter
 from ..utils import dicts_to_device, cat_dicts
 
 class HMVideoSimplePipeline(StableDiffusionImg2ImgPipeline):
-    def caryomitosis(self,):
+    def caryomitosis(self, **kwargs):
         if hasattr(self, "unet_ref"):
             del self.unet_ref
         self.unet_ref = HMDenoising3D.from_unet2d(self.unet)

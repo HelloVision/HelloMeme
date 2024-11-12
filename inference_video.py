@@ -110,7 +110,8 @@ if __name__ == '__main__':
 
     pipline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
 
-    pipline.caryomitosis()
+    ### patch_frames: 12 or 16
+    pipline.caryomitosis(patch_frames=12)
 
     ### load customized checkpoint or lora here:
     ## checkpoints

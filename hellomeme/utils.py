@@ -413,7 +413,7 @@ def load_data_list(data_dir, post_fix='.pickle;.txt'):
     ret_list = []
     for root, dirnames, filenames in os.walk(data_dir):
             for name in filenames:
-                if os.path.splitext(name)[1] in post_fixs and not name.startswith('.'):
+                if os.path.splitext(name)[1].lower() in post_fixs and not name.startswith('.'):
                     data_path = os.path.join(root, name)
                     ret_list.append(data_path)
     return ret_list
