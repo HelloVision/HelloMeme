@@ -18,9 +18,8 @@ from diffusers.utils import deprecate
 from diffusers.utils.torch_utils import randn_tensor
 
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
-from diffusers import StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, MotionAdapter, EulerDiscreteScheduler
 
-from diffusers import MotionAdapter
 from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet
 from ..models import HMReferenceAdapter
 from ..utils import dicts_to_device, cat_dicts
@@ -234,7 +233,12 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                 if self.do_classifier_free_guidance:
                     control_latent = cat_dicts([control_latent_neg, control_latent], dim=0)
 
-                scheduler = copy.deepcopy(self.scheduler)
+                scheduler = EulerDiscreteScheduler(
+                    num_train_timesteps=1000,
+                    beta_start=0.00085,
+                    beta_end=0.012,
+                    beta_schedule="scaled_linear",
+                )
 
                 tmp_timesteps, _ = retrieve_timesteps(
                     scheduler, 8, device, None, sigmas
@@ -242,8 +246,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                 if idx == 0:
                     pred_latent = scheduler.add_noise(ref_latents, base_noise, tmp_timesteps[:1])
                 else:
-                    pred_latent = scheduler.add_noise(pred_latent, base_noise,
-                                                       tmp_timesteps[:1])
+                    pred_latent = scheduler.add_noise(pred_latent, base_noise, tmp_timesteps[:1])
 
                 for i, t in enumerate(tmp_timesteps):
                     latent_model_input = torch.cat([pred_latent, pred_latent], dim=0) if \

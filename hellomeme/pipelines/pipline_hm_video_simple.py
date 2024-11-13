@@ -19,7 +19,7 @@ from diffusers.utils import deprecate
 from diffusers.utils.torch_utils import randn_tensor
 
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
-from diffusers import StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, EulerDiscreteScheduler
 
 from ..models import HMDenoising3D, HMControlNet
 from ..models import HMReferenceAdapter
@@ -217,8 +217,15 @@ class HMVideoSimplePipeline(StableDiffusionImg2ImgPipeline):
                 if self.do_classifier_free_guidance:
                     control_latent = cat_dicts([control_latent_neg, control_latent], dim=0)
 
-                scheduler = copy.deepcopy(self.scheduler)
+                scheduler = EulerDiscreteScheduler(
+                    num_train_timesteps=1000,
+                    beta_start=0.00085,
+                    beta_end=0.012,
+                    beta_schedule="scaled_linear",
+                )
+
                 tmp_timesteps, _ = retrieve_timesteps(scheduler, 8, device, None, sigmas)
+                # pred_latent = scheduler.add_noise(ref_latents, base_noise, tmp_timesteps[:1])
                 if idx == 0:
                     pred_latent = scheduler.add_noise(ref_latents, base_noise, tmp_timesteps[:1])
                 else:
@@ -254,15 +261,15 @@ class HMVideoSimplePipeline(StableDiffusionImg2ImgPipeline):
         with self.progress_bar(total=raw_video_len) as progress_bar:
             for idx in range(raw_video_len):
 
-                scheduler = copy.deepcopy(self.scheduler)
+                scheduler = EulerDiscreteScheduler(
+                    num_train_timesteps=1000,
+                    beta_start=0.00085,
+                    beta_end=0.012,
+                    beta_schedule="scaled_linear",
+                )
                 tmp_timesteps, _ = retrieve_timesteps(scheduler, num_inference_steps, device, None, sigmas)
 
-                if idx == 0:
-                    res_latent = scheduler.add_noise(pre_latents[idx].to(device=device),
-                                                          base_noise, tmp_timesteps[:1])
-                else:
-                    res_latent = scheduler.add_noise(pre_latents[idx].to(device=device) * 0.8 + res_latent * 0.2,
-                                                          base_noise, tmp_timesteps[:1])
+                res_latent = scheduler.add_noise(pre_latents[idx].to(device=device), base_noise, tmp_timesteps[:1])
 
                 for i, t in enumerate(tmp_timesteps):
                     latent_model_input = torch.cat([res_latent, res_latent], dim=0) if \

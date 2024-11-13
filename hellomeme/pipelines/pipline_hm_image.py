@@ -126,7 +126,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         text_encoder_lora_scale = (
             self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
         )
-
+        print('device:', device)
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,
