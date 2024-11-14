@@ -20,7 +20,7 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 from diffusers import StableDiffusionImg2ImgPipeline, MotionAdapter, EulerDiscreteScheduler
 
-from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet
+from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNet2
 from ..models import HMReferenceAdapter
 from ..utils import dicts_to_device, cat_dicts
 
@@ -56,6 +56,11 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
             del self.mp_control
         self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
         self.mp_control = self.mp_control.to(device=device, dtype=dtype).eval()
+
+        if hasattr(self, "mp_control2"):
+            del self.mp_control2
+        self.mp_control2 = HMControlNet2.from_pretrained('songkey/hm_control2')
+        self.mp_control2 = self.mp_control2.to(device=device, dtype=dtype).eval()
 
     @torch.no_grad()
     def __call__(
@@ -132,7 +137,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         else:
             batch_size = prompt_embeds.shape[0]
 
-        device = self._execution_device
+        device = self.device
 
         # 3. Encode input prompt
         text_encoder_lora_scale = (
@@ -196,8 +201,9 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         )
 
         ref_latents = ref_latents.unsqueeze(2)
+        self.unet_ref.to(device=device)
         cached_res = self.unet_ref(
-            torch.cat([torch.zeros_like(ref_latents), ref_latents], dim=0) if
+            torch.cat([ref_latents, ref_latents], dim=0) if
                 self.do_classifier_free_guidance else ref_latents,
             0,
             encoder_hidden_states=prompt_embeds,
@@ -214,24 +220,44 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         pre_latents = []
         control_latents = []
-        control_latent_neg = None
+        control_latent1_neg, control_latent2_neg = None, None
         base_noise = randn_tensor([batch_size, c, 1, h, w], dtype=prompt_embeds.dtype, generator=generator).to(device=device)
+        self.mp_control.to(device=device)
+        self.mp_control2.to(device=device)
         with self.progress_bar(total=raw_video_len) as progress_bar:
             for idx in range(raw_video_len):
                 condition = drive_params['condition'][:, :, idx:idx+1].clone().to(device=device)
-                drive_coeff = drive_params['drive_coeff'][:, idx:idx+1].clone().to(device=device)
-                face_parts = drive_params['face_parts'][:, idx:idx+1].clone().to(device=device)
 
-                if control_latent_neg is None and self.do_classifier_free_guidance:
-                    control_latent_neg = self.mp_control(condition=torch.ones_like(condition)*-1,
-                                                drive_coeff=torch.zeros_like(drive_coeff),
-                                                face_parts=torch.zeros_like(face_parts))
+                control_latent_input = {}
+                if 'drive_coeff' in drive_params:
+                    drive_coeff = drive_params['drive_coeff'][:, idx:idx+1].clone().to(device=device)
+                    face_parts = drive_params['face_parts'][:, idx:idx+1].clone().to(device=device)
 
-                control_latent = self.mp_control(condition=condition,
-                                                drive_coeff=drive_coeff,
-                                                face_parts=face_parts)
-                if self.do_classifier_free_guidance:
-                    control_latent = cat_dicts([control_latent_neg, control_latent], dim=0)
+                    if control_latent1_neg is None and self.do_classifier_free_guidance:
+                        control_latent1_neg = self.mp_control(condition=torch.ones_like(condition)*-1,
+                                                    drive_coeff=torch.zeros_like(drive_coeff),
+                                                    face_parts=torch.zeros_like(face_parts))
+
+                    control_latent1 = self.mp_control(condition=condition,
+                                                    drive_coeff=drive_coeff,
+                                                    face_parts=face_parts)
+                    if self.do_classifier_free_guidance:
+                        control_latent1 = cat_dicts([control_latent1_neg, control_latent1], dim=0)
+
+                    control_latent_input.update(control_latent1)
+
+                if 'pd_fpg' in drive_params:
+                    pd_fpg = drive_params['pd_fpg'][:, idx:idx+1].clone().to(device=device)
+
+                    if control_latent2_neg is None and self.do_classifier_free_guidance:
+                        control_latent2_neg = self.mp_control2(condition=torch.ones_like(condition)*-1,
+                                emo_embedding=drive_params['neg_pd_fpg'].clone().to(device=device))
+
+                    control_latent2 = self.mp_control2(condition=condition, emo_embedding=pd_fpg)
+                    if self.do_classifier_free_guidance:
+                        control_latent2 = cat_dicts([control_latent2_neg, control_latent2], dim=0)
+
+                    control_latent_input.update(control_latent2)
 
                 scheduler = EulerDiscreteScheduler(
                     num_train_timesteps=1000,
@@ -257,7 +283,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                         t,
                         encoder_hidden_states=prompt_embeds,
                         reference_hidden_states=cached_res,
-                        control_hidden_states=control_latent,
+                        control_hidden_states=control_latent_input,
                         timestep_cond=timestep_cond,
                         cross_attention_kwargs=self.cross_attention_kwargs,
                         added_cond_kwargs=added_cond_kwargs,
@@ -269,15 +295,18 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     pred_latent = scheduler.step(noise_pred_chunk, t, pred_latent,
                                                   **extra_step_kwargs, return_dict=False)[0]
                 pre_latents.append(pred_latent.cpu())
-                control_latents.append(dicts_to_device([control_latent], device='cpu')[0])
+                control_latents.append(dicts_to_device([control_latent_input], device='cpu')[0])
 
                 progress_bar.set_description(f"GEN stage1")
                 progress_bar.update()
 
         pre_latents = torch.cat(pre_latents, dim=2)
+        self.mp_control.cpu()
+        self.mp_control2.cpu()
+        self.unet_ref.cpu()
 
         chunk_size = self.num_frames
-        chunk_overlap = min(max(0, chunk_overlap), chunk_size // 2)
+        chunk_overlap = min(max(0, chunk_overlap), chunk_size // 2 - 1)
         chunk_stride = chunk_size - chunk_overlap
 
         drive_idx_list = list(range(raw_video_len))
@@ -297,6 +326,8 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                      (pre_latents[:, :, -2:-1]).clone().repeat_interleave(post_pad_num, 2)], dim=2)
             control_latents = control_latents + [control_latents[-1]] * post_pad_num
 
+        drive_idx_chunks[-1] = list(range(drive_idx_chunks[-1][0], paded_video_len))
+
         # 5. set timesteps
         timesteps, num_inference_steps = retrieve_timesteps(
             self.scheduler, num_inference_steps, device, None, sigmas
@@ -310,8 +341,6 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         base_noise = randn_tensor([batch_size, c, paded_video_len, h, w], dtype=prompt_embeds.dtype, generator=generator)
         latents = self.scheduler.add_noise(pre_latents, base_noise, latent_timestep)
-
-        drive_idx_chunks[-1] = list(range(drive_idx_chunks[-1][0], paded_video_len))
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -353,8 +382,8 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred.to(device=device), t, latents.to(device=device),
-                                              **extra_step_kwargs, return_dict=False)[0].cpu()
+                latents = self.scheduler.step(noise_pred.cpu(), t, latents,
+                                              **extra_step_kwargs, return_dict=False)[0]
 
                 if callback_on_step_end is not None:
                     callback_kwargs = {}
@@ -376,7 +405,13 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         latents = latents / self.vae.config.scaling_factor
 
-        res_frames = [self.vae.decode(latents[:,:,i,:,:].to(device=device), return_dict=False, generator=generator)[0]
-                       for i in range(raw_video_len)]
-        res_frames = [self.image_processor.postprocess(frame, output_type=output_type) for frame in res_frames]
+        res_frames = []
+        with self.progress_bar(total=raw_video_len) as progress_bar:
+            for i in range(raw_video_len):
+                ret_tensor = self.vae.decode(latents[:, :, i, :, :].to(device=device),
+                                             return_dict=False, generator=generator)[0]
+                ret_image = self.image_processor.postprocess(ret_tensor, output_type=output_type)
+                res_frames.append(ret_image)
+                progress_bar.set_description(f"VAE DECODE")
+                progress_bar.update()
         return res_frames

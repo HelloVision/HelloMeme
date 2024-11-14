@@ -15,18 +15,20 @@ import os.path as osp
 import imageio
 from PIL import Image
 import torch
-from hellomeme.utils import (face_params_to_tensor,
-                             get_drive_params,
+from hellomeme.utils import (get_drive_pose,
+                             get_drive_expression,
+                             get_drive_expression_pd_fgc,
+                             det_landmarks,
                              gen_control_heatmaps,
                              ff_cat_video_and_audio,
                              ff_change_fps,
                              load_unet_from_safetensors)
-from hellomeme.pipelines import HMVideoPipeline, HMVideoSimplePipeline
-from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
+from hellomeme.pipelines import HMVideoPipeline
+from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
 from transformers import CLIPVisionModelWithProjection
 
 @torch.no_grad()
-def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.0):
+def inference_video(toolkits, ref_img_path, drive_video_path, save_path, trans_ratio=0.0):
     save_size = 512
     text = "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
 
@@ -36,8 +38,8 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
     drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + '_fps15.mp4'
     ff_change_fps(drive_video_path, drive_video_path_fps15, 15)
 
-    engines['face_aligner'].reset_track()
-    faces = engines['face_aligner'].forward(ref_image)
+    toolkits['face_aligner'].reset_track()
+    faces = toolkits['face_aligner'].forward(ref_image)
     if len(faces) > 0:
         face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
                 x['face_rect'][3] - x['face_rect'][1]))[-1]
@@ -45,7 +47,7 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
     else:
         print('### no face:', ref_img_path)
         return
-    ref_rot, ref_trans = engines['h3dmm'].forward_params(ref_image, ref_landmark)
+    ref_rot, ref_trans = toolkits['h3dmm'].forward_params(ref_image, ref_landmark)
 
     cap = cv2.VideoCapture(drive_video_path_fps15)
     frame_list = []
@@ -54,20 +56,15 @@ def inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ra
         frame_list.append(frame.copy())
         ret, frame = cap.read()
 
-    engines['face_aligner'].reset_track()
-    (drive_face_parts, drive_coeff, drive_rot, drive_trans) = get_drive_params(engines['face_aligner'],
-                                                             engines['h3dmm'], engines['harkit_bs'],
-                                                             frame_list=frame_list,
-                                                             save_size=save_size)
+    landmark_list = det_landmarks(toolkits['face_aligner'], frame_list)[1]
 
-    face_parts_embedding = face_params_to_tensor(engines['clip_image_encoder'], drive_face_parts)
+    drive_rot, drive_trans = get_drive_pose(toolkits, frame_list, landmark_list)
+    # drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
+    # for HMControlNet2
+    drive_params = get_drive_expression_pd_fgc(toolkits, frame_list, landmark_list)
+
     control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
-
-    drive_params = dict(
-        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),
-        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype, device='cpu'),
-        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu'),
-    )
+    drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 
     res_frames = pipline(
         prompt=[text],
@@ -97,12 +94,15 @@ if __name__ == '__main__':
     dtype = torch.float16
     device = torch.device(f'cuda:{gpu_id}')
 
-    engines = dict(
-        face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=True),
+    toolkits = dict(
+        device=device,
+        dtype=dtype,
+        pd_fpg_motion=FanEncoder.from_pretrained("songkey/pd_fgc_motion").to(dtype=dtype),
+        face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=False),
         harkit_bs=HelloARKitBSPred(gpu_id=gpu_id),
         h3dmm=Hello3DMMPred(gpu_id=gpu_id),
-        clip_image_encoder=CLIPVisionModelWithProjection.from_pretrained('h94/IP-Adapter',
-                             subfolder='models/image_encoder').to(dtype=dtype, device=device),
+        image_encoder=CLIPVisionModelWithProjection.from_pretrained(
+            'h94/IP-Adapter', subfolder='models/image_encoder').to(dtype=dtype)
     )
 
     ## the generated results may be of slightly lower quality, but more VRAM-friendly.
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     # pipline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
 
     pipline.insert_hm_modules(dtype=dtype, device=device)
-    engines['pipline'] = pipline.to(device=device, dtype=dtype)
+    toolkits['pipline'] = pipline.to(device=device, dtype=dtype)
 
     save_path = osp.join(save_dir, f'{ref_basname}_{drive_basename}.mp4')
-    inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)
+    inference_video(toolkits, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)

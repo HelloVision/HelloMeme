@@ -22,17 +22,20 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import convert_ldm_u
 
 from safetensors import safe_open
 
+
 def merge_dicts(dictl, dictr, wl=0.5):
     res = {}
     for k in dictl.keys():
         res[k] = dictl[k] * wl + dictr[k] * (1-wl)
     return res
 
+
 def cat_dicts(dicts, dim=0):
     res = {}
     for k in dicts[0].keys():
         res[k] = torch.cat([d[k].clone() for d in dicts], dim=dim)
     return res
+
 
 def dicts_to_device(dicts, device):
     ret = []
@@ -43,6 +46,7 @@ def dicts_to_device(dicts, device):
         ret.append(tmpd)
     return ret
 
+
 def load_safetensors(model_path):
     tensors = {}
     with safe_open(model_path, framework="pt", device=0) as f:
@@ -50,21 +54,26 @@ def load_safetensors(model_path):
             tensors[k] = f.get_tensor(k) # loads the full tensor given a key
     return tensors
 
+
 def load_unet_from_safetensors(safetensors_path, unet_config):
     original_stats = load_safetensors(safetensors_path)
     return convert_ldm_unet_checkpoint(original_stats, unet_config)
+
 
 def image_preprocess(np_bgr, size, dtype=torch.float32):
     img_np = cv2.resize(np_bgr, size)
     return np_bgr_to_tensor(img_np, dtype)
 
+
 def np_bgr_to_tensor(img_np, dtype):
     img_rgb = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB) / 255. * 2 - 1
     return torch.tensor(img_rgb).permute(2, 0, 1).to(dtype=dtype)
 
+
 def tensor_to_np_rgb(img_np):
     img_rgb = np.clip((img_np.permute(1, 2, 0).detach().cpu().numpy() + 1) / 2 * 255, 0, 255)
     return img_rgb.astype(np.uint8)
+
 
 def clip_preprocess_from_bgr(image_bgr, dtype=torch.float32):
     temp_image = cv2.resize(image_bgr, (224, 224), interpolation=cv2.INTER_CUBIC)
@@ -74,6 +83,7 @@ def clip_preprocess_from_bgr(image_bgr, dtype=torch.float32):
     temp_image_np = np.transpose(temp_image_np, (2, 0, 1))
     return torch.tensor(temp_image_np, dtype=dtype)
 
+
 def clip_preprocess_to_bgr(image_tensor):
     image_tensor_np = image_tensor.detach().cpu().numpy().astype(float)
     image_tensor_np = np.transpose(image_tensor_np, (1, 2, 0))
@@ -81,12 +91,14 @@ def clip_preprocess_to_bgr(image_tensor):
     image_tensor_np = np.clip(image_tensor_np / 0.00392156862745098, 0, 255).astype(np.uint8)
     return cv2.cvtColor(image_tensor_np, cv2.COLOR_BGR2RGB)
 
+
 def clip_preprocess_from_pil(image_pil, dtype):
     temp_image = image_pil.resize((224, 224), resample=Image.BICUBIC)
     temp_image_np = np.asarray(temp_image) * 0.00392156862745098
     temp_image_np = (temp_image_np - [0.48145466, 0.4578275, 0.40821073]) / [0.26862954, 0.26130258, 0.27577711]
     temp_image_np = np.transpose(temp_image_np, (2, 0, 1))
     return torch.tensor(temp_image_np, dtype=dtype)
+
 
 def draw_skl_by_rect(save_size, rect):
     rect = rect.astype(np.int32)
@@ -98,21 +110,6 @@ def draw_skl_by_rect(save_size, rect):
     cv2.line(ret_img, rect[3], rect[0], (255, 0, 255), 15)
     return ret_img
 
-def get_face_part_1frame(image, parts, save_size=256):
-    ret_list = []
-    for part_landmarks in parts:
-        part_tls, part_brs = np.min(part_landmarks, axis=0), np.max(part_landmarks, axis=0)
-        center = (part_tls + part_brs) * 0.5
-        wh = max(part_brs - part_tls) * 1.2
-
-        scale = save_size / wh
-
-        M = cv2.getRotationMatrix2D(center, 0, scale)
-        M[:, 2] += save_size * 0.5 - center
-
-        part = cv2.warpAffine(image, M, (save_size, save_size))
-        ret_list.append(part)
-    return np.stack(ret_list, axis=0)
 
 face_parts_regions = [
     [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94],
@@ -122,7 +119,113 @@ face_parts_regions = [
 face_region = [33, 74, 96, 133, 149]
 face_temp = np.array([[0.50951539, 0.40128625], [0.29259476, 0.40203411], [0.72196212, 0.40857479], [0.63420714, 0.71678643], [0.38437035, 0.71723224]])
 
-def get_face_parts(images, landmarks, save_size=256):
+
+def get_drive_pose(toolkits, frames, landmarks, save_size=512, align=True):
+    if isinstance(landmarks, list): landmarks = np.stack(landmarks, axis=0)
+    if align:
+        new_frames, new_landmarks = crop_and_resize(np.stack(frames, axis=0), landmarks,
+                                                    save_size=save_size, crop=False)
+    else:
+        new_frames, new_landmarks = frames, landmarks
+
+    rot_list = []
+    trans_list = []
+    with tqdm(total=len(new_landmarks)) as pbar:
+        for landmark, frame in zip(new_landmarks, new_frames):
+            drive_rot, drive_trans = toolkits['h3dmm'].forward_params(frame, landmark)
+            rot_list.append(drive_rot)
+            trans_list.append(drive_trans)
+
+            pbar.set_description('HEAD POSE')
+            pbar.update()
+    return rot_list, trans_list
+
+
+def get_drive_expression(toolkits, images, landmarks):
+    face_parts_embedding = get_face_parts(toolkits, images, landmarks, save_size=256)
+    drive_coeff = get_arkit_bs(toolkits, images, landmarks)
+
+    return dict(
+        face_parts=face_parts_embedding.unsqueeze(0),
+        drive_coeff=drive_coeff.unsqueeze(0)
+    )
+
+
+def get_drive_expression_pd_fgc(toolkits, images, landmarks):
+    dtype = toolkits['dtype']
+    device = toolkits['device']
+    emo_list = []
+
+    motion_model = toolkits['pd_fpg_motion'].to(device=device)
+    with tqdm(total=len(images)) as pbar:
+        for frame, landmark in zip(images, landmarks):
+            emo_image = warp_face_pd_fgc(frame, landmark, save_size=224)
+            input_tensor = image_preprocess(emo_image, (224, 224), dtype).to(device=device).unsqueeze(0)
+            emo_tensor = motion_model(input_tensor)
+            emo_list.append(emo_tensor.cpu())
+            pbar.set_description('PD_FPG_MOTION')
+            pbar.update()
+
+    neg_tensor = motion_model(torch.ones_like(input_tensor)*-1).cpu()
+
+    ret_tensor = torch.cat(emo_list, dim=0)
+    toolkits['pd_fpg_motion'].to(device='cpu')
+    return dict(pd_fpg=ret_tensor.unsqueeze(0), neg_pd_fpg=neg_tensor.unsqueeze(0))
+
+
+def gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=0.0):
+    control_list = []
+    for rot, trans in zip(drive_rot, drive_trans):
+        rect = get_project_points_rect(rot, ref_trans + (trans - drive_trans[0]) * trans_ratio, save_size, save_size)
+        control_heatmap = draw_skl_by_rect(save_size, rect)
+
+        control_heatmap = image_preprocess(control_heatmap, (save_size, save_size))
+        control_list.append(control_heatmap)
+    return torch.stack(control_list, dim=1)
+
+
+def det_landmarks(face_aligner, frame_list):
+    rect_list = []
+    new_frame_list = []
+
+    assert len(frame_list) > 0
+    face_aligner.reset_track()
+    with tqdm(total=len(frame_list)) as pbar:
+        for frame in frame_list:
+            faces = face_aligner.forward(frame)
+            if len(faces) > 0:
+                face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
+                        x['face_rect'][3] - x['face_rect'][1]))[-1]
+                rect_list.append(face['face_rect'])
+                new_frame_list.append(frame)
+            pbar.set_description('DET stage1')
+            pbar.update()
+
+    assert len(new_frame_list) > 0
+    face_aligner.reset_track()
+    save_frame_list = []
+    save_landmark_list = []
+    with tqdm(total=len(new_frame_list)) as pbar:
+        for frame, rect in zip(new_frame_list, rect_list):
+            faces = face_aligner.forward(frame, pre_rect=rect)
+            if len(faces) > 0:
+                face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
+                        x['face_rect'][3] - x['face_rect'][1]))[-1]
+                landmarks = face['pre_kpt_222']
+                save_frame_list.append(frame)
+                save_landmark_list.append(landmarks)
+            pbar.set_description('DET stage2')
+            pbar.update()
+
+    assert len(save_frame_list) > 0
+    save_landmark_list = np.stack(save_landmark_list, axis=0)
+    face_aligner.reset_track()
+    return save_frame_list, save_landmark_list
+
+
+def get_face_parts(toolkits, images, landmarks, save_size=256):
+    dtype = toolkits['dtype']
+    device = toolkits['device']
     H, W = images[0].shape[:2]
     warped_imgs = []
     warped_landmarks = []
@@ -136,138 +239,65 @@ def get_face_parts(images, landmarks, save_size=256):
 
         warped_landmark = transform_points(landmark.astype(np.float32), M)[:,:2]
 
-        # for x, y in warped_landmark:
-        #     warped_img = cv2.circle(warped_img, (int(x), int(y)), 1, (255, 255, 0), -1)
-        # for x, y in dst_landmarks:
-        #     warped_img = cv2.circle(warped_img, (int(x), int(y)), 1, (0, 255, 0), -1)
-        # cv2.imshow('warped_img', warped_img)
-        # cv2.waitKey()
-
         warped_imgs.append(warped_img)
         warped_landmarks.append(warped_landmark)
     warped_imgs = np.stack(warped_imgs, axis=0)
     warped_landmarks = np.stack(warped_landmarks, axis=0)
 
-    ret_list = []
-    for region in face_parts_regions:
+    clip_encoder = toolkits['image_encoder'].to(device=device)
+
+    face_parts_embedding = []
+
+    for rdx, region in enumerate(face_parts_regions):
         part_landmarks = warped_landmarks[:, region, :]
         part_tls, part_brs = np.min(np.min(part_landmarks, axis=1), axis=0), np.max(np.max(part_landmarks, axis=1), axis=0)
         center = (part_tls + part_brs) * 0.5
         wh = max(part_brs - part_tls) * 1.2
 
         scale = save_size / wh
-
         M = cv2.getRotationMatrix2D(center, 0, scale)
         M[:, 2] += save_size * 0.5 - center
-        tmp_part_list = []
-        for warped_img in warped_imgs:
-            part = cv2.warpAffine(warped_img, M, (save_size, save_size))
-            # cv2.imshow('warped_img', warped_img)
-            # cv2.imshow('part', part)
-            # cv2.waitKey()
-            tmp_part_list.append(part)
-        ret_list.append(np.stack(tmp_part_list, axis=0))
-    return np.stack(ret_list, axis=0).transpose(1, 0, 2, 3, 4)
 
-def get_face_params(h3dmm, harkit_bs, frames, landmarks, save_size=(512, 512), align=True):
-    face_parts = []
-    for tmp_face_parts_list in get_face_parts(frames, landmarks, save_size=256):
-        tmp_face_parts_list = [cv2.GaussianBlur(x, (9, 9), 0) for x in tmp_face_parts_list]
-        face_parts.append(tmp_face_parts_list)
+        tmp_parts_embeddings = []
+        with tqdm(total=len(warped_imgs)) as pbar:
+            for warped_img in warped_imgs:
+                part = cv2.warpAffine(warped_img, M, (save_size, save_size))
+                part = cv2.GaussianBlur(part, (5, 5), 0)
+                part_input = clip_preprocess_from_bgr(part).unsqueeze(0)
+                part_embedding = clip_encoder(part_input.to(device=device, dtype=dtype)).image_embeds
+                tmp_parts_embeddings.append(part_embedding[0].cpu())
 
-    if align:
-        new_frames, new_landmarks = crop_and_resize(np.stack(frames, axis=0), np.stack(landmarks, axis=0),
-                                                    save_size=save_size, crop=False)
-    else:
-        new_frames, new_landmarks = frames, landmarks
+                pbar.set_description(f'FACE part{rdx}')
+                pbar.update()
+        face_parts_embedding.append(torch.stack(tmp_parts_embeddings, dim=0))
 
-    rot_list = []
-    trans_list = []
+    ret_embedding = torch.stack(face_parts_embedding, dim=0)
+    ret_embedding = rearrange(ret_embedding, "p f d -> f p d")
+    toolkits['image_encoder'].to(device='cpu')
+    return ret_embedding
+
+
+def get_arkit_bs(toolkits, frames, landmarks):
+    harkit_bs = toolkits['harkit_bs']
     arkit_bs_list = []
-
-    with tqdm(total=len(new_landmarks)) as pbar:
-        for landmark, frame in zip(new_landmarks, new_frames):
-            drive_rot, drive_trans = h3dmm.forward_params(frame, landmark)
-            rot_list.append(drive_rot)
-            trans_list.append(drive_trans)
+    with tqdm(total=len(landmarks)) as pbar:
+        for landmark, frame in zip(landmarks, frames):
             arkit_bs_list.append(harkit_bs.forward(frame, landmark))
-
-            pbar.set_description('RT & ARKIT')
+            pbar.set_description('ARKIT BS')
             pbar.update()
-    drive_coeff = torch.from_numpy(np.stack(arkit_bs_list, axis=0))
-    return face_parts, drive_coeff, rot_list, trans_list
+    return torch.from_numpy(np.stack(arkit_bs_list, axis=0))
 
-def face_params_to_tensor(clip_encoder, face_parts):
-    face_parts_list = []
-    for tmp_face_parts_list in face_parts:
-        tmp_face_parts_list = [clip_preprocess_from_bgr(x).unsqueeze(1) for x in tmp_face_parts_list]
-        face_parts_list.append(torch.cat(tmp_face_parts_list, dim=1))
-    face_parts = torch.stack(face_parts_list, dim=2)
 
-    face_parts_tensor = rearrange(face_parts, "c f p h w -> (f p) c h w")
-    face_parts_embedding_list = []
-    with tqdm(total=face_parts_tensor.size(0)) as pbar:
-        for i in range(0, face_parts_tensor.size(0)):
-            face_parts_embedding = clip_encoder(face_parts_tensor[i:i+1].to(device=clip_encoder.device, dtype=clip_encoder.dtype)).image_embeds
-            face_parts_embedding_list.append(face_parts_embedding.cpu())
-            pbar.set_description('CLIP IMAGE ENCODER')
-            pbar.update()
+def warp_face_pd_fgc(image, landmarks222, save_size=224):
+    pt5_idx = [182, 202, 36, 149, 133]
+    dst_pt5 = np.array([[0.3843, 0.27], [0.62, 0.2668], [0.503, 0.4185], [0.406, 0.5273], [0.5977, 0.525]]) * save_size
+    src_pt5 = landmarks222[pt5_idx]
 
-    face_parts_embedding = torch.cat(face_parts_embedding_list, dim=0)
-    face_parts_embedding = rearrange(face_parts_embedding,
-                                     "(f p) c -> f p c",
-                                     f=face_parts.size(2))
-    return face_parts_embedding
+    M = umeyama(src_pt5, dst_pt5, True)[0:2]
+    warped = cv2.warpAffine(image, M, (save_size, save_size), flags=cv2.INTER_CUBIC)
 
-def gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=0.0):
-    control_list = []
-    for rot, trans in zip(drive_rot, drive_trans):
-        rect = get_project_points_rect(rot, ref_trans + (trans - drive_trans[0]) * trans_ratio, save_size, save_size)
-        control_heatmap = draw_skl_by_rect(save_size, rect)
+    return warped
 
-        control_heatmap = image_preprocess(control_heatmap, (save_size, save_size))
-        control_list.append(control_heatmap)
-    return torch.stack(control_list, dim=1)
-
-def det_landmarks(face_aligner, frame_list, save_size=(512, 512), reset=False):
-    rect_list = []
-    new_frame_list = []
-    with tqdm(total=len(frame_list)) as pbar:
-        for frame in frame_list:
-            frame = cv2.resize(frame, save_size)
-            faces = face_aligner.forward(frame, reset=reset)
-            if len(faces) > 0:
-                face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                        x['face_rect'][3] - x['face_rect'][1]))[-1]
-                rect_list.append(face['face_rect'])
-                new_frame_list.append(frame)
-            pbar.set_description('DET stage1')
-            pbar.update()
-
-    face_aligner.reset_track()
-    save_frame_list = []
-    save_landmark_list = []
-    with tqdm(total=len(new_frame_list)) as pbar:
-        for frame, rect in zip(new_frame_list, rect_list):
-            faces = face_aligner.forward(frame, pre_rect=rect, reset=reset)
-            if len(faces) > 0:
-                face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                        x['face_rect'][3] - x['face_rect'][1]))[-1]
-                landmarks = face['pre_kpt_222']
-                save_frame_list.append(frame)
-                save_landmark_list.append(landmarks)
-            pbar.set_description('DET stage2')
-            pbar.update()
-    save_landmark_list = np.stack(save_landmark_list, axis=0).astype(np.float16)
-
-    face_aligner.reset_track()
-    return save_frame_list, save_landmark_list
-
-def get_drive_params(face_aligner, h3dmm, harkit_bs, frame_list, save_size, align=True):
-    frame_num = len(frame_list)
-    frame_list, landmark_list = det_landmarks(face_aligner, frame_list, save_size=(512, 512), reset=False)
-    assert len(frame_list) == frame_num
-    return get_face_params(h3dmm, harkit_bs, frame_list, landmark_list, save_size=save_size, align=align)
 
 def crop_and_resize(frames, landmarks, save_size=512, crop=True):
     H, W = frames[0].shape[:2]
@@ -306,6 +336,7 @@ def crop_and_resize(frames, landmarks, save_size=512, crop=True):
     landmarks = landmarks * ratio
     frames = np.stack([cv2.resize(frame, (save_size, save_size), interpolation=cv2.INTER_CUBIC) for frame in frames], axis=0)
     return frames, landmarks
+
 
 def umeyama(src, dst, estimate_scale):
     """Estimate N-D similarity transformation with or without scaling.
@@ -377,6 +408,7 @@ def umeyama(src, dst, estimate_scale):
 
     return T
 
+
 def ff_cat_video_and_audio(video_path, audio_path, output_path):
     cmd = [
         "ffmpeg",
@@ -391,6 +423,7 @@ def ff_cat_video_and_audio(video_path, audio_path, output_path):
         output_path
     ]
     subprocess.run(cmd)
+
 
 def ff_change_fps(input_video, output_video, fps=15):
     cmd = [
@@ -407,6 +440,7 @@ def ff_change_fps(input_video, output_video, fps=15):
     ]
 
     subprocess.run(cmd)
+
 
 def load_data_list(data_dir, post_fix='.pickle;.txt'):
     post_fixs = post_fix.split(';')

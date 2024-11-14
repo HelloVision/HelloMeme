@@ -86,3 +86,61 @@ class HMControlNet(ModelMixin, ConfigMixin):
                                                      "(b f) c h w -> b c f h w",
                                                      f=video_length)
         return ret_dict
+
+class HMControlNet2(ModelMixin, ConfigMixin):
+    @register_to_config
+    def __init__(
+            self,
+            embedding_channels: int,
+            input_channels: int = 3,
+            scale_factor: int = 8,
+            cross_attention_dim: int = 320,
+            block_out_channels: Tuple[int] = (128, 320, 640, 1280),
+    ):
+        super().__init__()
+        self.scale_factor = scale_factor
+        self.embedding_channels = embedding_channels
+        self.cross_attention_dim = cross_attention_dim
+        self.conv_in = nn.Conv2d(input_channels, block_out_channels[0], kernel_size=3, padding=1, bias=False)
+
+        self.exp_embedding = Timesteps(cross_attention_dim, True, 0)
+        self.emo_proj = TimestepEmbedding(cross_attention_dim, cross_attention_dim)
+
+        self.blocks_down = nn.ModuleList([])
+        for i in range(1, len(block_out_channels)):
+            channel_in = block_out_channels[i-1]
+            channel_out = block_out_channels[i]
+            self.blocks_down.append(
+                SKCrossAttention(
+                    channel_in=channel_in,
+                    channel_out=channel_out,
+                    cross_attention_dim=cross_attention_dim,
+                    num_positional_embeddings=64,
+                    num_positional_embeddings_hidden=1024
+                )
+            )
+
+    def forward(self, condition, emo_embedding):
+        bs, _, video_length, h, w = condition.shape
+
+        condition = rearrange(condition, "b c f h w -> (b f) c h w")
+        condition = F.interpolate(condition,
+                                   size=(h // self.scale_factor, w // self.scale_factor),
+                                   mode='bilinear',
+                                   align_corners=False)
+        embedding = self.conv_in(condition)
+
+        drive_coeff = rearrange(emo_embedding * 20., "b f c -> (b f c)")
+        drive_embedding = self.exp_embedding(drive_coeff).to(dtype=embedding.dtype)
+        drive_embedding = rearrange(drive_embedding, "(b f c) d -> b f c d",
+                                    b=bs, f=video_length, d=self.cross_attention_dim)
+        drive_embedding = rearrange(drive_embedding, "b f c d -> (b f) c d")
+        drive_embedding = self.emo_proj(drive_embedding)
+
+        ret_dict = {}
+        for idx, block in enumerate(self.blocks_down):
+            embedding = block(embedding, drive_embedding)
+            ret_dict[f'down2_{idx}'] = rearrange(embedding,
+                                                     "(b f) c h w -> b c f h w",
+                                                     f=video_length)
+        return ret_dict

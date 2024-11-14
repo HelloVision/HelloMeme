@@ -10,7 +10,7 @@ adapted from: https://github.com/huggingface/diffusers/blob/main/src/diffusers/p
 """
 
 from typing import Any, Callable, Dict, List, Optional, Union
-
+from einops import rearrange
 import torch
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
@@ -22,7 +22,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusion
 from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 
-from ..models import HMDenoising3D, HMControlNet
+from ..models import HMDenoising3D, HMControlNet, HMControlNet2
 from ..models import HMReferenceAdapter
 
 class HMImagePipeline(StableDiffusionImg2ImgPipeline):
@@ -42,9 +42,15 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             self.unet_ref = self.unet_ref.to(device=device, dtype=dtype).eval()
             self.unet = self.unet.to(device=device, dtype=dtype).eval()
 
-        if not hasattr(self, "mp_control"):
-            self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
-            self.mp_control = self.mp_control.to(device=device, dtype=dtype).eval()
+        if hasattr(self, "mp_control"):
+            del self.mp_control
+        self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
+        self.mp_control = self.mp_control.to(device=device, dtype=dtype).eval()
+
+        if hasattr(self, "mp_control2"):
+            del self.mp_control2
+        self.mp_control2 = HMControlNet2.from_pretrained('songkey/hm_control2')
+        self.mp_control2 = self.mp_control2.to(device=device, dtype=dtype).eval()
 
     @torch.no_grad()
     def __call__(
@@ -171,14 +177,31 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         ref_latents = self.vae.config.scaling_factor * ref_latents
 
         condition = drive_params['condition'].clone().to(device=device)
-        drive_coeff = drive_params['drive_coeff'].clone().to(device=device)
-        face_parts = drive_params['face_parts'].clone().to(device=device)
-
         if self.do_classifier_free_guidance:
             condition = torch.cat([torch.ones_like(condition) * -1, condition], dim=0)
-            drive_coeff = torch.cat([torch.zeros_like(drive_coeff), drive_coeff], dim=0)
-            face_parts = torch.cat([torch.zeros_like(face_parts), face_parts], dim=0)
-        control_latents = self.mp_control(condition=condition, drive_coeff=drive_coeff, face_parts=face_parts)
+
+        control_latents = {}
+        if 'drive_coeff' in drive_params:
+            self.mp_control.to(device=device)
+            drive_coeff = drive_params['drive_coeff'].clone().to(device=device)
+            face_parts = drive_params['face_parts'].clone().to(device=device)
+            if self.do_classifier_free_guidance:
+                drive_coeff = torch.cat([torch.zeros_like(drive_coeff), drive_coeff], dim=0)
+                face_parts = torch.cat([torch.zeros_like(face_parts), face_parts], dim=0)
+            control_latents1 = self.mp_control(condition=condition, drive_coeff=drive_coeff, face_parts=face_parts)
+            control_latents.update(control_latents1)
+            self.mp_control.cpu()
+
+        if 'pd_fpg' in drive_params:
+            self.mp_control2.to(device=device)
+            pd_fpg = drive_params['pd_fpg'].clone().to(device=device)
+            if self.do_classifier_free_guidance:
+                neg_pd_fpg = drive_params['neg_pd_fpg'].clone().to(device=device)
+                neg_pd_fpg.repeat_interleave(pd_fpg.size(1), dim=1)
+                pd_fpg = torch.cat([neg_pd_fpg, pd_fpg], dim=0)
+            control_latents2 = self.mp_control2(condition=condition, emo_embedding=pd_fpg)
+            control_latents.update(control_latents2)
+            self.mp_control2.cpu()
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -191,13 +214,14 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         )
 
         latent_model_input = torch.cat([torch.zeros_like(ref_latents), ref_latents]) if self.do_classifier_free_guidance else ref_latents
+        self.unet_ref.to(device=device)
         cached_res = self.unet_ref(
             latent_model_input.unsqueeze(2),
             0,
             encoder_hidden_states=prompt_embeds,
-            # added_cond_kwargs=added_cond_kwargs,
             return_dict=False,
         )[1]
+        self.unet_ref.cpu()
 
         # 7.2 Optionally get Guidance Scale Embedding
         timestep_cond = None

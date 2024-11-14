@@ -6,13 +6,15 @@ import numpy as np
 import cv2
 import imageio
 from PIL import Image
-from hellomeme.utils import (face_params_to_tensor,
+from hellomeme.utils import (get_drive_pose,
+                             get_drive_expression,
+                             det_landmarks,
                              gen_control_heatmaps,
-                             get_drive_params,
-                             ff_cat_video_and_audio
-                             )
+                             ff_cat_video_and_audio,
+                             ff_change_fps,
+                             load_unet_from_safetensors)
 from hellomeme.pipelines import HMVideoPipeline
-from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo
+from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
 from transformers import CLIPVisionModelWithProjection
 
 # Initialize engines and pipeline (preload these for efficiency)
@@ -20,18 +22,21 @@ gpu_id = 0
 dtype = torch.float16
 device = torch.device(f'cuda:{gpu_id}')
 
-engines = dict(
-    face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=True),
+toolkits = dict(
+    device=device,
+    dtype=dtype,
+    pd_fpg_motion=FanEncoder.from_pretrained("songkey/pd_fgc_motion").to(dtype=dtype),
+    face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=False),
     harkit_bs=HelloARKitBSPred(gpu_id=gpu_id),
     h3dmm=Hello3DMMPred(gpu_id=gpu_id),
-    clip_image_encoder=CLIPVisionModelWithProjection.from_pretrained('h94/IP-Adapter',
-                         subfolder='models/image_encoder').to(dtype=dtype, device=device),
+    image_encoder=CLIPVisionModelWithProjection.from_pretrained(
+        'h94/IP-Adapter', subfolder='models/image_encoder').to(dtype=dtype)
 )
 
 pipline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
 pipline.caryomitosis()
 pipline.insert_hm_modules(device=device, dtype=dtype)
-engines['pipline'] = pipline.to(device=device, dtype=dtype)
+toolkits['pipline'] = pipline.to(device=device, dtype=dtype)
 
 def sanitize_filename(filename):
     """Replace spaces and special characters in filename with underscores."""
@@ -58,8 +63,8 @@ def inference_video(ref_img, drive_video, trans_ratio=0.0):
     video_capture.release()
 
     # Run face alignment and get drive parameters without changing FPS
-    engines['face_aligner'].reset_track()
-    faces = engines['face_aligner'].forward(ref_image)
+    toolkits['face_aligner'].reset_track()
+    faces = toolkits['face_aligner'].forward(ref_image)
     if len(faces) > 0:
         face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
                 x['face_rect'][3] - x['face_rect'][1]))[-1]
@@ -67,8 +72,7 @@ def inference_video(ref_img, drive_video, trans_ratio=0.0):
     else:
         return "No face detected in the reference image.", None
 
-    # Use ref_image as a NumPy array for OpenCV operations
-    ref_rot, ref_trans = engines['h3dmm'].forward_params(ref_image, ref_landmark)
+    ref_rot, ref_trans = toolkits['h3dmm'].forward_params(ref_image, ref_landmark)
 
     cap = cv2.VideoCapture(drive_video)
     frame_list = []
@@ -77,21 +81,13 @@ def inference_video(ref_img, drive_video, trans_ratio=0.0):
         frame_list.append(frame.copy())
         ret, frame = cap.read()
 
-    engines['face_aligner'].reset_track()
-    (drive_face_parts, drive_coeff, drive_rot, drive_trans) = get_drive_params(
-        engines['face_aligner'], engines['h3dmm'], engines['harkit_bs'],
-        frame_list=frame_list,
-        save_size=save_size
-    )
+    landmark_list = det_landmarks(toolkits['face_aligner'], frame_list)[1]
 
-    face_parts_embedding = face_params_to_tensor(engines['clip_image_encoder'], drive_face_parts)
+    drive_rot, drive_trans = get_drive_pose(toolkits, frame_list, landmark_list)
+    drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
+
     control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
-
-    drive_params = dict(
-        face_parts=face_parts_embedding.unsqueeze(0).to(dtype=dtype, device='cpu'),
-        drive_coeff=drive_coeff.unsqueeze(0).to(dtype=dtype, device='cpu'),
-        condition=control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu'),
-    )
+    drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 
     # Generate frames in pipeline
     res_frames = pipline(

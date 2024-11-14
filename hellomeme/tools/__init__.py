@@ -11,3 +11,4 @@ from .hello_face_det import HelloFaceDet
 from .hello_camera_demo import HelloCameraDemo
 from .hello_3dmm import Hello3DMMPred
 from .hello_face_alignment import HelloFaceAlignment
+from .pdf import FanEncoder

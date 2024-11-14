@@ -9,6 +9,6 @@
 """
 
 from .hm_denoising_motion import HMDenoisingMotion
-from .hm_control import HMControlNet
+from .hm_control import HMControlNet, HMControlNet2
 from .hm_blocks import HMReferenceAdapter
 from .hm_denoising_3d import HMDenoising3D

@@ -191,6 +191,8 @@ class HMDenoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
 
             if not control_hidden_states is None and f'down_{idx}' in control_hidden_states:
                 sample += rearrange(control_hidden_states[f'down_{idx}'], "b c f h w -> (b f) c h w")
+            if not control_hidden_states is None and f'down2_{idx}' in control_hidden_states:
+                sample += rearrange(control_hidden_states[f'down2_{idx}'], "b c f h w -> (b f) c h w")
             if hasattr(self, 'reference_modules_down') and not reference_hidden_states is None and f'down_{idx}' in reference_hidden_states:
                 sample = self.reference_modules_down[idx](sample, reference_hidden_states[f'down_{idx}'], num_frames)
 
