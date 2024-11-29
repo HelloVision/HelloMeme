@@ -136,7 +136,9 @@ class SKReferenceAttention(nn.Module):
 
     def forward(self, hidden_states, ref_stats, num_frames):
         h, w = hidden_states.shape[-2:]
-        ref_stats = ref_stats.repeat_interleave(num_frames, dim=0)
+
+        if ref_stats.shape[0] != hidden_states.shape[0]:
+            ref_stats = ref_stats.repeat_interleave(num_frames, dim=0)
         cat_stats = torch.cat([hidden_states, ref_stats], dim=-1)
 
         cat_stats = rearrange(cat_stats.contiguous(), "b c h w -> (b h) w c")

@@ -22,13 +22,20 @@ from hellomeme.utils import (get_drive_pose,
                              gen_control_heatmaps,
                              ff_cat_video_and_audio,
                              ff_change_fps,
-                             load_unet_from_safetensors)
+                             get_torch_device,
+                             load_safetensors)
 from hellomeme.pipelines import HMVideoPipeline
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
 from transformers import CLIPVisionModelWithProjection
 
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (convert_ldm_unet_checkpoint,
+                                                                    convert_ldm_vae_checkpoint)
+
+
 @torch.no_grad()
 def inference_video(toolkits, ref_img_path, drive_video_path, save_path, trans_ratio=0.0):
+    dtype = toolkits['dtype']
+    device = toolkits['device']
     save_size = 512
     text = "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
 
@@ -59,14 +66,14 @@ def inference_video(toolkits, ref_img_path, drive_video_path, save_path, trans_r
     landmark_list = det_landmarks(toolkits['face_aligner'], frame_list)[1]
 
     drive_rot, drive_trans = get_drive_pose(toolkits, frame_list, landmark_list)
-    # drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
+    drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
     # for HMControlNet2
-    drive_params = get_drive_expression_pd_fgc(toolkits, frame_list, landmark_list)
+    # drive_params = get_drive_expression_pd_fgc(toolkits, frame_list, landmark_list)
 
     control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
     drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 
-    res_frames = pipline(
+    res_frames, latents = toolkits['pipeline'](
         prompt=[text],
         strength=1.0,
         image=ref_image_pil,
@@ -74,13 +81,14 @@ def inference_video(toolkits, ref_img_path, drive_video_path, save_path, trans_r
         num_inference_steps=25,
         negative_prompt=[''],
         guidance_scale=2.0,
-        output_type='np'
+        output_type='np',
+        device=device
     )
-    res_frames = [np.clip(x[0] * 255, 0, 255).astype(np.uint8) for x in res_frames]
+    res_frames_np = [np.clip(x[0] * 255, 0, 255).astype(np.uint8) for x in res_frames]
 
     os.makedirs(osp.dirname(save_path), exist_ok=True)
-    imageio.mimsave(save_path, res_frames, fps=15)
-    ff_cat_video_and_audio(save_path, drive_video_path, osp.splitext(save_path)[0] + '_audio.mp4')
+    imageio.mimsave(save_path, res_frames_np, fps=15)
+    ff_cat_video_and_audio(save_path, drive_video_path_fps15, osp.splitext(save_path)[0] + '_audio.mp4')
 
 if __name__ == '__main__':
     ref_img_path = r"data/reference_images/trump.jpg"
@@ -92,7 +100,7 @@ if __name__ == '__main__':
 
     gpu_id = 0
     dtype = torch.float16
-    device = torch.device(f'cuda:{gpu_id}')
+    device = get_torch_device(gpu_id)
 
     toolkits = dict(
         device=device,
@@ -105,23 +113,30 @@ if __name__ == '__main__':
             'h94/IP-Adapter', subfolder='models/image_encoder').to(dtype=dtype)
     )
 
-    ## the generated results may be of slightly lower quality, but more VRAM-friendly.
-    # pipline = HMVideoSimplePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
-
-    pipline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
+    pipeline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+    pipeline.to(dtype=dtype)
 
     ### patch_frames: 12 or 16
-    pipline.caryomitosis(patch_frames=12)
+    pipeline.caryomitosis(patch_frames=12)
 
     ### load customized checkpoint or lora here:
-    ## checkpoints
-    # state_dict = load_unet_from_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors", pipline.unet_ref.config)
-    # pipline.unet.load_state_dict(state_dict, strict=False)
-    ### lora
-    # pipline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
+    ### checkpoints
+    # raw_stats = load_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors")
+    # state_dict = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
+    # pipeline.unet.load_state_dict(state_dict, strict=False)
+    # if hasattr(pipeline, 'unet_pre'):
+    #     pipeline.unet_pre.load_state_dict(state_dict, strict=False)
+    # pipeline.unet.load_state_dict(state_dict, strict=False)
+    #
+    # vae_state_dict = convert_ldm_vae_checkpoint(raw_stats, pipeline.vae_decode.config)
+    # if hasattr(pipeline, 'vae_decode'):
+    #     pipeline.vae_decode.load_state_dict(vae_state_dict, strict=True)
 
-    pipline.insert_hm_modules(dtype=dtype, device=device)
-    toolkits['pipline'] = pipline.to(device=device, dtype=dtype)
+    ### lora
+    # pipeline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
+
+    pipeline.insert_hm_modules(dtype=dtype)
+    toolkits['pipeline'] = pipeline
 
     save_path = osp.join(save_dir, f'{ref_basname}_{drive_basename}.mp4')
     inference_video(toolkits, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)

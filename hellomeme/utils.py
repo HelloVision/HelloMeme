@@ -18,10 +18,13 @@ import subprocess
 from einops import rearrange
 from .tools.utils import transform_points
 from .tools.hello_3dmm import get_project_points_rect
-from diffusers.pipelines.stable_diffusion.convert_from_ckpt import convert_ldm_unet_checkpoint
 
 from safetensors import safe_open
 
+def get_torch_device(gpu_id=-1):
+    if gpu_id < 0: return torch.device("cpu")
+    gpu_id = min(max(-1, gpu_id), torch.cuda.device_count())
+    return torch.device(f"cuda:{gpu_id}")
 
 def merge_dicts(dictl, dictr, wl=0.5):
     res = {}
@@ -36,6 +39,11 @@ def cat_dicts(dicts, dim=0):
         res[k] = torch.cat([d[k].clone() for d in dicts], dim=dim)
     return res
 
+def cat_dicts_ref(dicts):
+    res = {}
+    for k in dicts[0].keys():
+        res[k] = rearrange(torch.cat([d[k].clone().unsqueeze(1) for d in dicts], dim=1), "b f c h w -> (b f) c h w ")
+    return res
 
 def dicts_to_device(dicts, device):
     ret = []
@@ -53,11 +61,6 @@ def load_safetensors(model_path):
         for k in f.keys():
             tensors[k] = f.get_tensor(k) # loads the full tensor given a key
     return tensors
-
-
-def load_unet_from_safetensors(safetensors_path, unet_config):
-    original_stats = load_safetensors(safetensors_path)
-    return convert_ldm_unet_checkpoint(original_stats, unet_config)
 
 
 def image_preprocess(np_bgr, size, dtype=torch.float32):

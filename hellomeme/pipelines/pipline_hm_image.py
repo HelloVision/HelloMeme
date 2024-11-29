@@ -9,8 +9,8 @@
 adapted from: https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion_img2img.py
 """
 
+import copy
 from typing import Any, Callable, Dict, List, Optional, Union
-from einops import rearrange
 import torch
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
@@ -29,28 +29,36 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
     def caryomitosis(self, **kwargs):
         if not hasattr(self, "unet_ref"):
             self.unet_ref = HMDenoising3D.from_unet2d(self.unet)
+            self.unet_ref.cpu()
         if not isinstance(self.unet, HMDenoising3D):
             unet = HMDenoising3D.from_unet2d(unet=self.unet)
             # todo: 不够优雅
             del self.unet
             self.unet = unet
+            self.unet.cpu()
+        self.vae_decode = copy.deepcopy(self.vae)
 
-    def insert_hm_modules(self, dtype, device):
+    def insert_hm_modules(self, dtype):
         if isinstance(self.unet, HMDenoising3D):
             hm_adapter = HMReferenceAdapter.from_pretrained('songkey/hm_reference')
             self.unet.insert_reference_adapter(hm_adapter)
-            self.unet_ref = self.unet_ref.to(device=device, dtype=dtype).eval()
-            self.unet = self.unet.to(device=device, dtype=dtype).eval()
+            self.unet_ref.insert_reference_adapter(hm_adapter)
+            self.unet_ref.to(device='cpu', dtype=dtype).eval()
+            self.unet.to(device='cpu', dtype=dtype).eval()
 
         if hasattr(self, "mp_control"):
             del self.mp_control
         self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
-        self.mp_control = self.mp_control.to(device=device, dtype=dtype).eval()
+        self.mp_control.to(device='cpu', dtype=dtype).eval()
 
         if hasattr(self, "mp_control2"):
             del self.mp_control2
         self.mp_control2 = HMControlNet2.from_pretrained('songkey/hm_control2')
-        self.mp_control2 = self.mp_control2.to(device=device, dtype=dtype).eval()
+        self.mp_control2.to(device='cpu', dtype=dtype).eval()
+
+        self.vae.to(device='cpu', dtype=dtype).eval()
+        self.vae_decode.to(device='cpu', dtype=dtype).eval()
+        self.text_encoder.to(device='cpu', dtype=dtype).eval()
 
     @torch.no_grad()
     def __call__(
@@ -71,6 +79,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             ip_adapter_image: Optional[PipelineImageInput] = None,
             ip_adapter_image_embeds: Optional[List[torch.Tensor]] = None,
             output_type: Optional[str] = "pil",
+            device: Optional[str] = "cpu",
             return_dict: bool = True,
             cross_attention_kwargs: Optional[Dict[str, Any]] = None,
             clip_skip: int = None,
@@ -126,13 +135,14 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         else:
             batch_size = prompt_embeds.shape[0]
 
-        device = self.device
+        # device = self.device
 
         # 3. Encode input prompt
         text_encoder_lora_scale = (
             self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
         )
-        print('device:', device)
+
+        self.text_encoder.to(device=device)
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,
@@ -144,6 +154,8 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             lora_scale=text_encoder_lora_scale,
             clip_skip=self.clip_skip,
         )
+        self.text_encoder.cpu()
+
         # For classifier free guidance, we need to do two forward passes.
         # Here we concatenate the unconditional and text embeddings into a single batch
         # to avoid doing two forward passes
@@ -169,10 +181,14 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
 
+        # 6. Prepare reference latents
+        self.vae.to(device=device)
         ref_latents = [
             retrieve_latents(self.vae.encode(image[i: i + 1].to(device=device)), generator=generator)
             for i in range(batch_size)
         ]
+        self.vae.cpu()
+
         ref_latents = torch.cat(ref_latents, dim=0)
         ref_latents = self.vae.config.scaling_factor * ref_latents
 
@@ -219,6 +235,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             latent_model_input.unsqueeze(2),
             0,
             encoder_hidden_states=prompt_embeds,
+            # control_hidden_states=control_latents,
             return_dict=False,
         )[1]
         self.unet_ref.cpu()
@@ -237,6 +254,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         self._num_timesteps = len(timesteps)
+        self.unet.to(device=device)
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 if self.interrupt:
@@ -284,12 +302,16 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
                         step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, t, latents)
 
+        self.unet.cpu()
+
+        self.vae_decode.to(device=device)
         if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False, generator=generator)[
+            image = self.vae_decode.decode(latents / self.vae.config.scaling_factor, return_dict=False, generator=generator)[
                 0
             ]
         else:
             image = latents
+        self.vae_decode.cpu()
 
         do_denormalize = [True] * image.shape[0]
 
@@ -298,4 +320,4 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         # Offload all models
         self.maybe_free_model_hooks()
 
-        return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=None)
+        return StableDiffusionPipelineOutput(images=image, nsfw_content_detected=None), latents.detach().cpu() / self.vae.config.scaling_factor

@@ -10,23 +10,27 @@
 
 import cv2
 import numpy as np
-from PIL import Image
 import torch
 from hellomeme.utils import (get_drive_pose,
                              get_drive_expression,
                              get_drive_expression_pd_fgc,
                              gen_control_heatmaps,
-                             load_unet_from_safetensors)
+                             get_torch_device,
+                             load_safetensors)
 from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
 from hellomeme.pipelines import HMImagePipeline
 from transformers import CLIPVisionModelWithProjection
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (convert_ldm_unet_checkpoint,
+                                                                    convert_ldm_vae_checkpoint)
 
-
+from PIL import Image
 
 def inference_image(toolkits, ref_img_path, drive_img_path, seed=0, trans_ratio=0.0):
     save_size = 512
     text = "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
 
+    dtype = toolkits['dtype']
+    device = toolkits['device']
     ref_image_pil = Image.open(ref_img_path).convert('RGB').resize((save_size, save_size))
     ref_image = cv2.cvtColor(np.array(ref_image_pil), cv2.COLOR_RGB2BGR)
 
@@ -68,7 +72,7 @@ def inference_image(toolkits, ref_img_path, drive_img_path, seed=0, trans_ratio=
 
     generator = torch.Generator().manual_seed(seed)
 
-    result_img = pipeline(
+    result_img, latents = toolkits['pipeline'](
         prompt=[text],
         strength=1.0,
         image=ref_image_pil,
@@ -77,10 +81,13 @@ def inference_image(toolkits, ref_img_path, drive_img_path, seed=0, trans_ratio=
         negative_prompt=[''],
         guidance_scale=2.0,
         generator=generator,
-        output_type='np'
+        output_type='np',
+        device=device
     )
 
-    return cv2.cvtColor(np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8), cv2.COLOR_BGR2RGB)
+    res_image_np = np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8)
+
+    return cv2.cvtColor(res_image_np, cv2.COLOR_BGR2RGB)
 
 if __name__ == '__main__':
     ref_img_path = r"data/reference_images/majicmix2.jpg"
@@ -88,7 +95,7 @@ if __name__ == '__main__':
 
     gpu_id = 0
     dtype = torch.float16
-    device = torch.device(f'cuda:{gpu_id}')
+    device = get_torch_device(gpu_id)
 
     toolkits = dict(
         device=device,
@@ -101,18 +108,26 @@ if __name__ == '__main__':
             'h94/IP-Adapter', subfolder='models/image_encoder').to(dtype=dtype)
     )
 
-    pipeline = HMImagePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5").to(device=device, dtype=dtype)
+    pipeline = HMImagePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+    pipeline.to(dtype=dtype)
     pipeline.caryomitosis()
 
     ### load customized checkpoint or lora here:
-    ## checkpoints
-    # state_dict = load_unet_from_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors", pipeline.unet_ref.config)
+    ### checkpoints
+    # raw_stats = load_safetensors(r"pretrained_models/disneyPixarCartoon_v10.safetensors")
+    # state_dict = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
     # pipeline.unet.load_state_dict(state_dict, strict=False)
+    # pipeline.unet.load_state_dict(state_dict, strict=False)
+    #
+    # vae_state_dict = convert_ldm_vae_checkpoint(raw_stats, pipeline.vae_decode.config)
+    # if hasattr(pipeline, 'vae_decode'):
+    #     pipeline.vae_decode.load_state_dict(vae_state_dict, strict=True)
+
     ### lora
     # pipeline.load_lora_weights("pretrained_models/loras", weight_name="pixel-portrait-v1.safetensors", adapter_name="pixel")
 
-    pipeline.insert_hm_modules(dtype=dtype, device=device)
-    toolkits['pipeline'] = pipeline.to(device=device, dtype=dtype)
+    pipeline.insert_hm_modules(dtype=dtype)
+    toolkits['pipeline'] = pipeline
 
     result_image = inference_image(toolkits, ref_img_path, drive_img_path, seed=1024)
     cv2.imshow('show', result_image)
