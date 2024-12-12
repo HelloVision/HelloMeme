@@ -10,6 +10,7 @@
 
 import os
 import cv2
+import os.path as osp
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -20,40 +21,88 @@ from .tools.utils import transform_points
 from .tools.hello_3dmm import get_project_points_rect
 
 from safetensors import safe_open
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (convert_ldm_unet_checkpoint,
+                                                                    convert_ldm_vae_checkpoint)
+from .tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
+from transformers import CLIPVisionModelWithProjection
 
 def get_torch_device(gpu_id=-1):
     if gpu_id < 0: return torch.device("cpu")
     gpu_id = min(max(-1, gpu_id), torch.cuda.device_count())
     return torch.device(f"cuda:{gpu_id}")
 
-def merge_dicts(dictl, dictr, wl=0.5):
-    res = {}
-    for k in dictl.keys():
-        res[k] = dictl[k] * wl + dictr[k] * (1-wl)
-    return res
+def load_face_toolkits(dtype=torch.float16, gpu_id=-1):
+    image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+        'h94/IP-Adapter', subfolder='models/image_encoder')
+    image_encoder.to(dtype=dtype).cpu()
+    pd_fpg_motion = FanEncoder.from_pretrained("songkey/pd_fgc_motion")
+    pd_fpg_motion.to(dtype=dtype).cpu()
+    return dict(
+            device=get_torch_device(gpu_id),
+            dtype=dtype,
+            pd_fpg_motion=pd_fpg_motion,
+            face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=False),
+            harkit_bs=HelloARKitBSPred(gpu_id=gpu_id),
+            h3dmm=Hello3DMMPred(gpu_id=gpu_id),
+            image_encoder=image_encoder
+        )
 
+def append_pipline_weights(pipeline, checkpoint_path=None, lora_path=None, vae_path=None, stylize='x1'):
+    ### load customized checkpoint or lora here:
 
-def cat_dicts(dicts, dim=0):
-    res = {}
-    for k in dicts[0].keys():
-        res[k] = torch.cat([d[k].clone() for d in dicts], dim=dim)
-    return res
+    # print("## checkpoint_path", checkpoint_path)
+    # print("## lora_path", lora_path)
+    # print("## vae_path", vae_path)
 
-def cat_dicts_ref(dicts):
-    res = {}
-    for k in dicts[0].keys():
-        res[k] = rearrange(torch.cat([d[k].clone().unsqueeze(1) for d in dicts], dim=1), "b f c h w -> (b f) c h w ")
-    return res
+    raw_stats = None
+    if checkpoint_path and not checkpoint_path.startswith('SD1.5'):
+        if osp.exists(checkpoint_path):
+            print("Loading checkpoint from", checkpoint_path)
+            if checkpoint_path.endswith('.safetensors'):
+                raw_stats = load_safetensors(checkpoint_path)
+            else:
+                raw_stats = torch.load(checkpoint_path)
 
-def dicts_to_device(dicts, device):
-    ret = []
-    for d in dicts:
-        tmpd = {}
-        for k in d.keys():
-            tmpd[k] = d[k].clone().to(device)
-        ret.append(tmpd)
-    return ret
+            if raw_stats:
+                try:
+                    state_dict = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
+                    if hasattr(pipeline, 'unet_pre'):
+                        pipeline.unet_pre.load_state_dict(state_dict, strict=False)
+                    pipeline.unet.load_state_dict(state_dict, strict=False)
 
+                    if stylize == 'x2' and hasattr(pipeline, 'unet_ref'):
+                        pipeline.unet_ref.load_state_dict(state_dict, strict=False)
+                except:
+                    raise ValueError("Failed to load checkpoint from", checkpoint_path)
+
+    if vae_path and not vae_path.startswith('SD1.5 default vae'):
+        raw_vae_stats = raw_stats
+
+        if osp.isfile(vae_path):
+            print("Loading vae from", vae_path)
+            if vae_path.endswith('.safetensors'):
+                raw_vae_stats = load_safetensors(vae_path)
+            else:
+                raw_vae_stats = torch.load(vae_path)
+
+        if raw_vae_stats:
+            try:
+                vae_state_dict = convert_ldm_vae_checkpoint(raw_vae_stats, pipeline.vae.config)
+                if hasattr(pipeline, 'vae_decode'):
+                    pipeline.vae_decode.load_state_dict(vae_state_dict, strict=True)
+                if stylize == 'x2':
+                    pipeline.vae.load_state_dict(vae_state_dict, strict=True)
+            except:
+                raise ValueError("Failed to load vae from", vae_path)
+
+    ### lora
+    if lora_path and not lora_path.startswith('None'):
+        if osp.exists(lora_path):
+            print("Loading lora from", lora_path)
+            try:
+                pipeline.load_lora_weights(osp.dirname(lora_path), weight_name=osp.basename(lora_path), adapter_name="lora")
+            except:
+                raise ValueError("Failed to load lora from", lora_path)
 
 def load_safetensors(model_path):
     tensors = {}
@@ -308,12 +357,11 @@ def crop_and_resize(frames, landmarks, save_size=512, crop=True):
         all_tl, all_br = np.min(landmarks, axis=1), np.max(landmarks, axis=1)
         mean_wh = np.mean(all_br - all_tl, axis=0)
         tl, br = np.min(all_tl, axis=0), np.max(all_br, axis=0)
-        new_size = min(max(mean_wh) * 2.2, min(H, W) - 1)
+        new_size = min(max(mean_wh) * 2.3, min(H, W) - 1)
         fcenter = (tl + br) * 0.5
+        fcenter[1] -= new_size * 0.115
         ftl = fcenter - new_size * 0.5
-        ftl[1] -= mean_wh[1] * 0.2
         fbr = fcenter + new_size * 0.5
-        fbr[1] -= mean_wh[1] * 0.2
 
         if ftl[0] < 0:
             fbr[0] -= ftl[0]
@@ -328,12 +376,16 @@ def crop_and_resize(frames, landmarks, save_size=512, crop=True):
         if fbr[1] >= H:
             ftl[1] -= fbr[1] - H + 1
             fbr[1] = H - 1
-        ftl = ftl.astype(int)
-        fbr = (fbr - ftl)[0].astype(int) + ftl
 
-        frames = frames[:, ftl[1]:fbr[1], ftl[0]:fbr[0], :].copy()
-        landmarks = landmarks - ftl
-        ratio = save_size / (fbr - ftl)
+        opt_center = (ftl + fbr) * 0.5
+        opt_size = np.floor(fbr - ftl).min()
+        opt_tl = (opt_center - opt_size * 0.5).astype(int)
+        opt_br = (opt_center + opt_size * 0.5).astype(int)
+
+        frames = frames[:, opt_tl[1]:opt_br[1], opt_tl[0]:opt_br[0], :].copy()
+
+        landmarks = landmarks - opt_tl
+        ratio = save_size / (opt_br - opt_tl)
     else:
         ratio = (save_size / W, save_size / H)
     landmarks = landmarks * ratio

@@ -50,28 +50,29 @@ class HMReferenceAdapter(ModelMixin, ConfigMixin):
                          "CrossAttnUpBlock2D",
                          "CrossAttnUpBlock2D"),
                  num_attention_heads: Optional[Union[int, Tuple[int]]] = 8,
+                 version='v1'
                  ):
         super().__init__()
-
-        self.reference_modules_down = nn.ModuleList([])
 
         if isinstance(num_attention_heads, int):
             num_attention_heads = (num_attention_heads,) * len(down_block_types)
 
-        for i, down_block_type in enumerate(down_block_types):
-            output_channel = block_out_channels[i]
+        if version == 'v1':
+            self.reference_modules_down = nn.ModuleList([])
+            for i, down_block_type in enumerate(down_block_types):
+                output_channel = block_out_channels[i]
 
-            self.reference_modules_down.append(
-                SKReferenceAttention(
-                    in_channels=output_channel,
-                    num_attention_heads=num_attention_heads[i],
+                self.reference_modules_down.append(
+                    SKReferenceAttention(
+                        in_channels=output_channel,
+                        num_attention_heads=num_attention_heads[i],
+                    )
                 )
-            )
 
-        self.reference_modules_mid = SKReferenceAttention(
-            in_channels=block_out_channels[-1],
-            num_attention_heads=num_attention_heads[-1],
-        )
+            self.reference_modules_mid = SKReferenceAttention(
+                in_channels=block_out_channels[-1],
+                num_attention_heads=num_attention_heads[-1],
+            )
 
         self.reference_modules_up = nn.ModuleList([])
 
@@ -326,7 +327,10 @@ class InsertReferenceAdapter(object):
         self.reference_modules_up = None
 
     def insert_reference_adapter(self, adapter: HMReferenceAdapter):
-        self.reference_modules_down = copy.deepcopy(adapter.reference_modules_down)
-        self.reference_modules_mid = copy.deepcopy(adapter.reference_modules_mid)
-        self.reference_modules_up = copy.deepcopy(adapter.reference_modules_up)
+        if hasattr(adapter, "reference_modules_down"):
+            self.reference_modules_down = copy.deepcopy(adapter.reference_modules_down)
+        if hasattr(adapter, "reference_modules_mid"):
+            self.reference_modules_mid = copy.deepcopy(adapter.reference_modules_mid)
+        if hasattr(adapter, "reference_modules_up"):
+            self.reference_modules_up = copy.deepcopy(adapter.reference_modules_up)
 

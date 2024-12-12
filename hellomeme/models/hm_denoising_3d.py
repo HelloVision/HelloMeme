@@ -251,6 +251,10 @@ class HMDenoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
 
             if hasattr(upsample_block, "has_cross_attention") and upsample_block.has_cross_attention:
                 res_cache[f"up_{i}"] = sample.clone()
+                if not control_hidden_states is None and f'up_v2_{i}' in control_hidden_states:
+                    sample += rearrange(control_hidden_states[f'up_v2_{i}'], "b c f h w -> (b f) c h w")
+                if not control_hidden_states is None and f'up2_v2_{i}' in control_hidden_states:
+                    sample += rearrange(control_hidden_states[f'up2_v2_{i}'], "b c f h w -> (b f) c h w")
                 if hasattr(self, "reference_modules_up") and not reference_hidden_states is None and f'up_{i}' in reference_hidden_states:
                     sample = self.reference_modules_up[i-1](sample, reference_hidden_states[f'up_{i}'], num_frames)
 
@@ -265,6 +269,10 @@ class HMDenoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
                     encoder_attention_mask=encoder_attention_mask,
                 )
             else:
+                if not control_hidden_states is None and f'up_v2_{i}' in control_hidden_states:
+                    sample += rearrange(control_hidden_states[f'up_v2_{i}'], "b c f h w -> (b f) c h w")
+                if not control_hidden_states is None and f'up2_v2_{i}' in control_hidden_states:
+                    sample += rearrange(control_hidden_states[f'up2_v2_{i}'], "b c f h w -> (b f) c h w")
                 sample = upsample_block(
                     hidden_states=sample,
                     temb=emb,

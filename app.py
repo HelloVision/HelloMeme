@@ -12,57 +12,22 @@ from hellomeme.utils import (get_drive_pose,
                              det_landmarks,
                              gen_control_heatmaps,
                              ff_cat_video_and_audio,
-                             ff_change_fps,
-                             get_torch_device,
-                             load_safetensors)
+                             append_pipline_weights,
+                             load_face_toolkits)
 from hellomeme.pipelines import HMVideoPipeline
-from hellomeme.tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
-from transformers import CLIPVisionModelWithProjection
 
-from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (convert_ldm_unet_checkpoint,
-                                                                    convert_ldm_vae_checkpoint)
-
-def load_models(checkpoint_path=None, lora_path=None):
+def load_models(checkpoint_path="None", vae_path ="same as checkpoint", lora_path="None"):
     gpu_id = 0
     dtype = torch.float16
-    device = get_torch_device(gpu_id)
-
-    toolkits = dict(
-        device=device,
-        dtype=dtype,
-        pd_fpg_motion=FanEncoder.from_pretrained("songkey/pd_fgc_motion").to(dtype=dtype),
-        face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=False),
-        harkit_bs=HelloARKitBSPred(gpu_id=gpu_id),
-        h3dmm=Hello3DMMPred(gpu_id=gpu_id),
-        image_encoder=CLIPVisionModelWithProjection.from_pretrained(
-            'h94/IP-Adapter', subfolder='models/image_encoder').to(dtype=dtype)
-    )
-
     pipeline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
     pipeline.to(dtype=dtype)
-    pipeline.caryomitosis()
+    pipeline.caryomitosis(version='v2')
 
-    ### load customized checkpoint or lora here:
-    ### checkpoints
-    if checkpoint_path and osp.exists(checkpoint_path):
-        raw_stats = load_safetensors(checkpoint_path)
-        state_dict = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
-        pipeline.unet.load_state_dict(state_dict, strict=False)
-        if hasattr(pipeline, 'unet_pre'):
-            pipeline.unet_pre.load_state_dict(state_dict, strict=False)
-        pipeline.unet.load_state_dict(state_dict, strict=False)
+    append_pipline_weights(pipeline, lora_path, checkpoint_path, vae_path, stylize='x1')
 
-        vae_state_dict = convert_ldm_vae_checkpoint(raw_stats, pipeline.vae_decode.config)
-        if hasattr(pipeline, 'vae_decode'):
-            pipeline.vae_decode.load_state_dict(vae_state_dict, strict=True)
+    pipeline.insert_hm_modules(dtype=dtype, version='v2')
 
-    ### lora
-    if lora_path and osp.exists(lora_path):
-        pipeline.load_lora_weights("pretrained_models/loras",
-                                   weight_name="pixel-portrait-v1.safetensors",
-                                   adapter_name="pixel")
-
-    pipeline.insert_hm_modules(dtype=dtype)
+    toolkits = load_face_toolkits(gpu_id=gpu_id, dtype=dtype)
     toolkits['pipeline'] = pipeline
     return toolkits
 
@@ -73,7 +38,7 @@ def sanitize_filename(filename):
     return re.sub(r'[^\w\-_\.]', '_', filename)
 
 @torch.no_grad()
-def inference_video(ref_img, drive_video, trans_ratio=0.0):
+def inference_video(ref_img, drive_video, cntrl_version='cntrl2', trans_ratio=0.0):
     save_size = 512
     dtype = toolkits['dtype']
     device = toolkits['device']
@@ -117,7 +82,11 @@ def inference_video(ref_img, drive_video, trans_ratio=0.0):
     landmark_list = det_landmarks(toolkits['face_aligner'], frame_list)[1]
 
     drive_rot, drive_trans = get_drive_pose(toolkits, frame_list, landmark_list)
-    drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
+    if cntrl_version == 'cntrl1':
+        drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
+    else:
+        # for HMControlNet2
+        drive_params = get_drive_expression_pd_fgc(toolkits, frame_list, landmark_list)
 
     control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
     drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')

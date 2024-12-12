@@ -12,6 +12,7 @@ adapted from: https://github.com/huggingface/diffusers/blob/main/src/diffusers/p
 import copy
 from typing import Any, Callable, Dict, List, Optional, Union
 import torch
+from einops import rearrange
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
@@ -21,21 +22,26 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 from diffusers import StableDiffusionImg2ImgPipeline, MotionAdapter, EulerDiscreteScheduler
 
-from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNet2
+from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNet2, HMV2ControlNet, HMV2ControlNet2
 from ..models import HMReferenceAdapter
-from ..utils import dicts_to_device, cat_dicts, cat_dicts_ref
 
 class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
-    def caryomitosis(self, patch_frames=12, **kwargs):
+    def caryomitosis(self, version, **kwargs):
         if hasattr(self, "unet_ref"):
             del self.unet_ref
         self.unet_ref = HMDenoising3D.from_unet2d(self.unet)
         self.unet_ref.cpu()
+
+        if hasattr(self, "unet_pre"):
+            del self.unet_pre
         self.unet_pre = HMDenoising3D.from_unet2d(self.unet)
         self.unet_pre.cpu()
 
         self.num_frames = 12
-        adapter = MotionAdapter.from_pretrained("songkey/hm_animatediff_frame12", torch_dtype=torch.float16)
+        if version == 'v1':
+            adapter = MotionAdapter.from_pretrained("songkey/hm_animatediff_frame12", torch_dtype=torch.float16)
+        else:
+            adapter = MotionAdapter.from_pretrained("songkey/hm2_animatediff_frame12", torch_dtype=torch.float16)
         unet = HMDenoisingMotion.from_unet2d(unet=self.unet, motion_adapter=adapter, load_weights=True)
         # todo: 不够优雅
         del self.unet
@@ -43,28 +49,37 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         self.vae_decode = copy.deepcopy(self.vae)
 
-    def insert_hm_modules(self, dtype):
-        hm_adapter = HMReferenceAdapter.from_pretrained('songkey/hm_reference')
+    def insert_hm_modules(self, version, dtype):
+        if version == 'v1':
+            hm_adapter = HMReferenceAdapter.from_pretrained('songkey/hm_reference')
+        else:
+            hm_adapter = HMReferenceAdapter.from_pretrained('songkey/hm2_reference')
         if isinstance(self.unet, HMDenoisingMotion):
             self.unet.insert_reference_adapter(hm_adapter)
             self.unet.to(device='cpu', dtype=dtype).eval()
-
-        if hasattr(self, "unet_ref"):
-            self.unet_ref.insert_reference_adapter(hm_adapter)
-            self.unet_ref.to(device='cpu', dtype=dtype).eval()
 
         if hasattr(self, "unet_pre"):
             self.unet_pre.insert_reference_adapter(hm_adapter)
             self.unet_pre.to(device='cpu', dtype=dtype).eval()
 
+        if hasattr(self, "unet_ref"):
+            self.unet_ref.to(device='cpu', dtype=dtype).eval()
+
         if hasattr(self, "mp_control"):
             del self.mp_control
-        self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
+        if version == 'v1':
+            self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
+        else:
+            self.mp_control = HMV2ControlNet.from_pretrained('songkey/hm2_control')
+
         self.mp_control.to(device='cpu', dtype=dtype).eval()
 
         if hasattr(self, "mp_control2"):
             del self.mp_control2
-        self.mp_control2 = HMControlNet2.from_pretrained('songkey/hm_control2')
+        if version == 'v1':
+            self.mp_control2 = HMControlNet2.from_pretrained('songkey/hm_control2')
+        else:
+            self.mp_control2 = HMV2ControlNet2.from_pretrained('songkey/hm2_control2')
         self.mp_control2.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()
@@ -271,15 +286,18 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     control_latent_input.update(control_latent2)
 
                 scheduler = EulerDiscreteScheduler(
-                    num_train_timesteps=1000,
-                    beta_start=0.00085,
-                    beta_end=0.012,
-                    beta_schedule="scaled_linear",
+                                num_train_timesteps=1000,
+                                beta_start=0.00085,
+                                beta_end=0.012,
+                                beta_schedule="scaled_linear",
+                            )
+
+                tmp_timesteps, tmp_steps = retrieve_timesteps(
+                    scheduler, 10, device, timesteps, sigmas
                 )
 
-                tmp_timesteps, _ = retrieve_timesteps(scheduler, 8, device, None, sigmas)
                 if idx == 0:
-                    pred_latent = scheduler.add_noise(ref_latents, base_noise, tmp_timesteps[:1])
+                    pred_latent = base_noise * scheduler.init_noise_sigma
                 else:
                     pred_latent = scheduler.add_noise(pred_latent, base_noise, tmp_timesteps[:1])
 
@@ -313,7 +331,6 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         self.mp_control.cpu()
         self.mp_control2.cpu()
         self.unet_pre.cpu()
-        self.unet_ref.cpu()
 
         chunk_size = self.num_frames
         chunk_overlap = min(max(0, chunk_overlap), chunk_size // 2 - 1)
@@ -338,23 +355,19 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         drive_idx_chunks[-1] = list(range(drive_idx_chunks[-1][0], paded_video_len))
 
-        scheduler = EulerDiscreteScheduler(
-            num_train_timesteps=1000,
-            beta_start=0.00085,
-            beta_end=0.012,
-            beta_schedule="scaled_linear",
-        )
-
         # 5. set timesteps
-        timesteps, num_inference_steps = retrieve_timesteps(scheduler, num_inference_steps, device, None, sigmas)
+        timesteps, num_inference_steps = retrieve_timesteps(
+            self.scheduler, num_inference_steps, device, timesteps, sigmas
+        )
+        timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
 
         # 8. Denoising loop
-        num_warmup_steps = len(timesteps) - num_inference_steps * scheduler.order
+        num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         self._num_timesteps = len(timesteps)
 
         base_noise = randn_tensor([batch_size, c, paded_video_len, h, w], dtype=prompt_embeds.dtype, generator=generator)
-        latents = scheduler.add_noise(pre_latents, base_noise, latent_timestep)
+        latents = self.scheduler.add_noise(pre_latents, base_noise, latent_timestep)
 
         self.unet.to(device=device)
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -366,7 +379,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                 latent_model_input_all = torch.cat([latents.clone(), latents.clone()], dim=0) if \
                     self.do_classifier_free_guidance else latents.clone()
 
-                latent_model_input_all = scheduler.scale_model_input(latent_model_input_all, t)
+                latent_model_input_all = self.scheduler.scale_model_input(latent_model_input_all, t)
                 for cidx, chunk in enumerate(drive_idx_chunks):
                     if self.interrupt:
                         continue
@@ -398,7 +411,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = scheduler.step(noise_pred.cpu(), t, latents,
+                latents = self.scheduler.step(noise_pred.cpu(), t, latents,
                                               **extra_step_kwargs, return_dict=False)[0]
 
                 if callback_on_step_end is not None:
@@ -412,11 +425,11 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
 
                 # call the callback, if provided
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % scheduler.order == 0):
+                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
                     progress_bar.set_description(f"GEN stage2")
                     progress_bar.update()
                     if callback is not None and i % callback_steps == 0:
-                        step_idx = i // getattr(scheduler, "order", 1)
+                        step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, t, latents)
         self.unet.cpu()
         latents_res = latents / self.vae.config.scaling_factor
@@ -433,3 +446,32 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                 progress_bar.update()
         self.vae_decode.cpu()
         return res_frames, latents_res
+
+
+def merge_dicts(dictl, dictr, wl=0.5):
+    res = {}
+    for k in dictl.keys():
+        res[k] = dictl[k] * wl + dictr[k] * (1-wl)
+    return res
+
+
+def cat_dicts(dicts, dim=0):
+    res = {}
+    for k in dicts[0].keys():
+        res[k] = torch.cat([d[k].clone() for d in dicts], dim=dim)
+    return res
+
+def cat_dicts_ref(dicts):
+    res = {}
+    for k in dicts[0].keys():
+        res[k] = rearrange(torch.cat([d[k].clone().unsqueeze(1) for d in dicts], dim=1), "b f c h w -> (b f) c h w ")
+    return res
+
+def dicts_to_device(dicts, device):
+    ret = []
+    for d in dicts:
+        tmpd = {}
+        for k in d.keys():
+            tmpd[k] = d[k].clone().to(device)
+        ret.append(tmpd)
+    return ret

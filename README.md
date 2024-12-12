@@ -28,6 +28,7 @@
 ## 🔆 New Features/Updates
 
 - ☐ [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) for ablation experiments.
+- ✅ `12/12/2024` Added HelloMeme V2 (synchronize code from the [`ComfyUI`](https://github.com/HelloVision/ComfyUI_HelloMeme) repo).
 - ✅ `11/14/2024` Added the `HMControlNet2` module
 - ✅ `11/12/2024` Added a newly fine-tuned version of [`Animatediff`](https://huggingface.co/songkey/hm_animatediff_frame12) with a patch size of 12, which uses less VRAM (Tested on 2080Ti).
 - ✅ `11/5/2024`  [`ComfyUI`](https://github.com/HelloVision/ComfyUI_HelloMeme) interface for HelloMeme.

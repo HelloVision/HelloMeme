@@ -225,7 +225,7 @@ class Smoother222(object):
 class HelloCameraDemo(object):
     def __init__(self, face_alignment_module, reset=False):
         self.face_alignment_module = face_alignment_module
-        self.face_prob_th = 0.01
+        self.face_prob_th = 0.0001
         self.min_face = 96
         self.face_image_size = self.face_alignment_module.face_image_size
         self.trackingFaces = []
