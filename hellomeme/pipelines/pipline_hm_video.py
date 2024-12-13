@@ -293,7 +293,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                             )
 
                 tmp_timesteps, tmp_steps = retrieve_timesteps(
-                    scheduler, 10, device, timesteps, sigmas
+                    scheduler, min(10, num_inference_steps), device, timesteps, sigmas
                 )
 
                 if idx == 0:

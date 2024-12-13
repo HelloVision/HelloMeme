@@ -1,141 +1,125 @@
+# coding: utf-8
+
+"""
+@File   : new_app.py
+@Author : Songkey
+@Email  : songkey@pku.edu.cn
+@Date   : 12/12/2024
+@Desc   : 
+"""
 import gradio as gr
-import os.path as osp
-import re
-import torch
-import numpy as np
-import cv2
-import imageio
-from PIL import Image
-from hellomeme.utils import (get_drive_pose,
-                             get_drive_expression,
-                             get_drive_expression_pd_fgc,
-                             det_landmarks,
-                             gen_control_heatmaps,
-                             ff_cat_video_and_audio,
-                             append_pipline_weights,
-                             load_face_toolkits)
-from hellomeme.pipelines import HMVideoPipeline
+from generator import Generator, DEFAULT_PROMPT
 
-def load_models(checkpoint_path="None", vae_path ="same as checkpoint", lora_path="None"):
-    gpu_id = 0
-    dtype = torch.float16
-    pipeline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
-    pipeline.to(dtype=dtype)
-    pipeline.caryomitosis(version='v2')
+with gr.Blocks() as app:
+    gr.Markdown('''
+        <div style="display: flex; justify-content: center; align-items: center; text-align: center;">
+            <div>
+                <h1>HelloMeme: Integrating Spatial Knitting Attentions to Embed High-Level and Fidelity-Rich Conditions in Diffusion Models</h1>
+                <div style="display: flex; justify-content: center; align-items: center; text-align: center;">
+                    <a href='https://songkey.github.io/hellomeme/'><img src='https://img.shields.io/badge/Project-HomePage-Green'></a>  &nbsp;\
+                    <a href='https://github.com/HelloVision/HelloMeme'><img src='https://img.shields.io/badge/GitHub-Code-blue'></a>  &nbsp;\
+                    <a href='https://arxiv.org/pdf/2410.22901'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a>  &nbsp;\
+                    <a href='https://github.com/HelloVision/ComfyUI_HelloMeme'><img src='https://img.shields.io/badge/ComfyUI-UI-blue'></a>  &nbsp;\
+                    <a href='https://github.com/HelloVision/HelloMeme'><img src='https://img.shields.io/github/stars/HelloVision/HelloMeme'></a>
+                </div>
+            </div>
+        </div>
+    ''')
 
-    append_pipline_weights(pipeline, lora_path, checkpoint_path, vae_path, stylize='x1')
+    gen = Generator(gpu_id=0)
+    gen.pre_download_hf_weights()
+    with gr.Tab("Image Generation"):
+        with gr.Row():
+            ref_img = gr.Image(type="pil", width=512, height=512)
+            drive_img = gr.Image(type="pil", width=512, height=512)
+            result_img = gr.Image(type="pil", width=512, height=512)
+        exec_btn = gr.Button("Run")
+        with gr.Row():
+            checkpoint = gr.Dropdown(choices=['SD1.5', 'krnl/realisticVisionV60B1_v51VAE',
+                                              'liamhvn/disney-pixar-cartoon-b'], value="SD1.5", label="Checkpoint")
+            version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
+            cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
+            stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
+        with gr.Accordion("Advanced Options", open=False):
+            with gr.Row():
+                num_steps = gr.Slider(1, 50, 25, step=1, label="Steps")
+                guidance = gr.Slider(1.0, 10.0, 2.2, step=0.1, label="Guidance", interactive=True)
+            with gr.Column():
+                prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
+                negative_prompt = gr.Textbox(label="Negative Prompt", value="")
+            with gr.Row():
+                seed = gr.Number(value=-1, label="Seed (-1 for random)")
+                trans_ratio = gr.Slider(0.0, 1.0, 0.0, step=0.01, label="Trans Ratio", interactive=True)
+                crop_reference = gr.Checkbox(label="Crop Reference", value=True)
 
-    pipeline.insert_hm_modules(dtype=dtype, version='v2')
+        def img_gen_fnc(ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt,
+                        trans_ratio, crop_reference, cntrl_version, version, stylize, checkpoint):
+            gen.load_image_pipeline_hf(hf_path=checkpoint, stylize=stylize, version='v1' if version == 'HelloMemeV1' else 'v2')
+            res = gen.image_generate(ref_img,
+                                     drive_img,
+                                     num_steps,
+                                     guidance,
+                                     seed,
+                                     prompt,
+                                     negative_prompt,
+                                     trans_ratio,
+                                     crop_reference,
+                                     'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
+                                    )
+            return res
 
-    toolkits = load_face_toolkits(gpu_id=gpu_id, dtype=dtype)
-    toolkits['pipeline'] = pipeline
-    return toolkits
+        exec_btn.click(fn=img_gen_fnc,
+                       inputs=[ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt,
+                               trans_ratio, crop_reference, cntrl_version, version, stylize, checkpoint],
+                       outputs=result_img,
+                       api_name="Image Generation")
 
-toolkits = load_models()
-
-def sanitize_filename(filename):
-    """Replace spaces and special characters in filename with underscores."""
-    return re.sub(r'[^\w\-_\.]', '_', filename)
-
-@torch.no_grad()
-def inference_video(ref_img, drive_video, cntrl_version='cntrl2', trans_ratio=0.0):
-    save_size = 512
-    dtype = toolkits['dtype']
-    device = toolkits['device']
-
-    text = "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
-
-    # Sanitize filenames for safety
-    ref_img_path = sanitize_filename("temp_ref_image.jpg")
-    
-    # Save input files to sanitized paths
-    ref_img.save(ref_img_path)
-    
-    # Load and prepare reference image as NumPy array for OpenCV processing
-    ref_image_pil = Image.open(ref_img_path).convert('RGB').resize((save_size, save_size))
-    ref_image = cv2.cvtColor(np.array(ref_image_pil), cv2.COLOR_RGB2BGR)  # Keep as NumPy array
-
-    # Get the original FPS of the drive video
-    video_capture = cv2.VideoCapture(drive_video)  # Use drive_video directly as the path
-    original_fps = video_capture.get(cv2.CAP_PROP_FPS)
-    video_capture.release()
-
-    # Run face alignment and get drive parameters without changing FPS
-    toolkits['face_aligner'].reset_track()
-    faces = toolkits['face_aligner'].forward(ref_image)
-    if len(faces) > 0:
-        face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                x['face_rect'][3] - x['face_rect'][1]))[-1]
-        ref_landmark = face['pre_kpt_222']
-    else:
-        return "No face detected in the reference image.", None
-
-    ref_rot, ref_trans = toolkits['h3dmm'].forward_params(ref_image, ref_landmark)
-
-    cap = cv2.VideoCapture(drive_video)
-    frame_list = []
-    ret, frame = cap.read()
-    while ret:
-        frame_list.append(frame.copy())
-        ret, frame = cap.read()
-
-    landmark_list = det_landmarks(toolkits['face_aligner'], frame_list)[1]
-
-    drive_rot, drive_trans = get_drive_pose(toolkits, frame_list, landmark_list)
-    if cntrl_version == 'cntrl1':
-        drive_params = get_drive_expression(toolkits, frame_list, landmark_list)
-    else:
-        # for HMControlNet2
-        drive_params = get_drive_expression_pd_fgc(toolkits, frame_list, landmark_list)
-
-    control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=512, trans_ratio=trans_ratio)
-    drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
-
-    # Generate frames in pipeline
-    res_frames, latents = toolkits['pipeline'](
-        prompt=[text],
-        strength=1.0,
-        image=ref_image_pil,  # ref_image_pil is a PIL image for the pipeline
-        drive_params=drive_params,
-        num_inference_steps=25,
-        negative_prompt=[''],
-        guidance_scale=2.0,
-        output_type='np',
-        device=device
-    )
-    res_frames_np = [np.clip(x[0] * 255, 0, 255).astype(np.uint8) for x in res_frames]
-
-    # Save the output video
-    output_path = sanitize_filename("output_video.mp4")
-    imageio.mimsave(output_path, res_frames_np, fps=original_fps)
-    final_output_path = sanitize_filename("output_with_audio.mp4")
-    ff_cat_video_and_audio(output_path, drive_video, final_output_path)
-    if not osp.exists(final_output_path):
-        final_output_path = output_path
-
-    return final_output_path
-
-# Gradio interface with layout adjustments
-with gr.Blocks() as interface:
-    gr.Markdown("# HelloMeme\nIntegrating Spatial Knitting Attentions to Embed High-Level and Fidelity-Rich Conditions in Diffusion Models.")
-    
-    with gr.Row():
-        with gr.Column():
-            ref_image_input = gr.Image(type="pil", label="Reference Image")
-            drive_video_input = gr.Video(label="Drive Video")
-            trans_ratio_slider = gr.Slider(minimum=0.0, maximum=1.0, step=0.1, value=0.0, label="Transition Ratio")
-        
-        with gr.Column():
-            generated_video_output = gr.Video(label="Generated Video")
-    
-    # Button at the bottom
-    generate_button = gr.Button("Generate Animation")
-
-    # Link inputs and outputs
-    generate_button.click(
-        inference_video,
-        inputs=[ref_image_input, drive_video_input, trans_ratio_slider],
-        outputs=generated_video_output
-    )
-
-interface.launch()
+    with gr.Tab("Video Generation"):
+        with gr.Row():
+            ref_img = gr.Image(type="pil", width=512, height=512, label="Reference Image")
+            drive_video = gr.Video(width=512, height=512, label="Drive Video")
+            result_video = gr.Video(width=512, height=512, autoplay=True, loop=True, label="Generated Video")
+        exec_btn = gr.Button("Run")
+        with gr.Row():
+            checkpoint = gr.Dropdown(choices=['SD1.5', 'krnl/realisticVisionV60B1_v51VAE',
+                                              'liamhvn/disney-pixar-cartoon-b'], value="SD1.5", label="Checkpoint")
+            version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
+            cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
+            stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
+        with gr.Accordion("Advanced Options", open=False):
+            with gr.Row():
+                num_steps = gr.Slider(1, 50, 25, step=1, label="Steps", interactive=True)
+                guidance = gr.Slider(1.0, 10.0, 2.2, step=0.1, label="Guidance", interactive=True)
+                patch_overlap = gr.Slider(1, 5, 4, step=1, label="Patch Overlap", interactive=True)
+            with gr.Column():
+                prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
+                negative_prompt = gr.Textbox(label="Negative Prompt", value="")
+            with gr.Row():
+                seed = gr.Number(value=-1, label="Seed (-1 for random)")
+                trans_ratio = gr.Slider(0.0, 1.0, 0.0, step=0.01, label="Trans Ratio", interactive=True)
+                with gr.Column():
+                    crop_reference = gr.Checkbox(label="Crop Reference", value=True)
+                    fps15 = gr.Checkbox(label="Use fps15", value=True)
+        def video_gen_fnc(ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt,
+                        trans_ratio, crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint, fps15):
+            gen.load_video_pipeline_hf(hf_path=checkpoint, stylize=stylize, version='v1' if version == 'HelloMemeV1' else 'v2')
+            res = gen.video_generate(ref_img,
+                                     drive_video,
+                                     num_steps,
+                                     guidance,
+                                     seed,
+                                     prompt,
+                                     negative_prompt,
+                                     trans_ratio,
+                                     crop_reference,
+                                     patch_overlap,
+                                     'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
+                                     fps15
+                                    )
+            return res
+        exec_btn.click(fn=video_gen_fnc,
+                       inputs=[ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
+                               crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint, fps15],
+                       outputs=result_video,
+                       api_name="Video Generation")
+app.launch(inbrowser=True)
