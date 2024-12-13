@@ -7,5 +7,6 @@
 *.png
 *_fps15.mp4
 .idea/
+.gradio/
 data/results
 pretrained_models/
