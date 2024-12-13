@@ -43,8 +43,8 @@ class Generator(object):
 
     @torch.no_grad()
     def pre_download_hf_weights(self):
-        self.load_video_pipeline_hf(hf_path="krnl/realisticVisionV60B1_v51VAE", stylize='x1', version='v2')
-        self.load_video_pipeline_hf(hf_path="liamhvn/disney-pixar-cartoon-b", stylize='x2', version='v1')
+        self.load_video_pipeline_hf(hf_path="krnl/realisticVisionV60B1_v51VAE", stylize='x2', version='v1')
+        self.load_video_pipeline_hf(hf_path="liamhvn/disney-pixar-cartoon-b", stylize='x2', version='v2')
 
     @torch.no_grad()
     def load_image_pipeline_hf(self, hf_path="SD1.5", stylize='x1', version='v2'):
@@ -223,10 +223,14 @@ class Generator(object):
         if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
         if fps15:
             ff_change_fps(drive_video_path, drive_video_path_fps15, 15)
+            fps = 15
         else:
             shutil.copy(drive_video_path, drive_video_path_fps15)
 
         cap = cv2.VideoCapture(drive_video_path_fps15)
+        if not fps15:
+            fps = cap.get(cv2.CAP_PROP_FPS)
+
         frame_list = []
         ret, frame = cap.read()
         while ret:
@@ -264,17 +268,17 @@ class Generator(object):
         res_frames_np = [np.clip(x[0] * 255, 0, 255).astype(np.uint8) for x in res_frames]
 
         if osp.exists(save_video_path): os.remove(save_video_path)
-        imageio.mimsave(save_video_path, res_frames_np, fps=15)
+        imageio.mimsave(save_video_path, res_frames_np, fps=fps)
 
         save_video_audio_path = osp.splitext(drive_video_path)[0] + '_audio.mp4'
         if osp.exists(save_video_audio_path): os.remove(save_video_audio_path)
         ff_cat_video_and_audio(save_video_path, drive_video_path_fps15, save_video_audio_path)
-        if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
+        # if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
 
         if not osp.exists(save_video_audio_path):
             save_video_audio_path = save_video_path
-        else:
-            os.remove(save_video_path)
+        # else:
+        #     os.remove(save_video_path)
 
         return save_video_audio_path
 

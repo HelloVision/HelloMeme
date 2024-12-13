@@ -36,7 +36,7 @@ with gr.Blocks() as app:
         exec_btn = gr.Button("Run")
         with gr.Row():
             checkpoint = gr.Dropdown(choices=['SD1.5', 'krnl/realisticVisionV60B1_v51VAE',
-                                              'liamhvn/disney-pixar-cartoon-b'], value="SD1.5", label="Checkpoint")
+                                              'liamhvn/disney-pixar-cartoon-b'], value="krnl/realisticVisionV60B1_v51VAE", label="Checkpoint")
             version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
             cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
             stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
@@ -82,7 +82,7 @@ with gr.Blocks() as app:
         exec_btn = gr.Button("Run")
         with gr.Row():
             checkpoint = gr.Dropdown(choices=['SD1.5', 'krnl/realisticVisionV60B1_v51VAE',
-                                              'liamhvn/disney-pixar-cartoon-b'], value="SD1.5", label="Checkpoint")
+                                              'liamhvn/disney-pixar-cartoon-b'], value="krnl/realisticVisionV60B1_v51VAE", label="Checkpoint")
             version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
             cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
             stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
