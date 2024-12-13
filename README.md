@@ -52,7 +52,7 @@ To install the latest version of PyTorch, please refer to the official [PyTorch]
 ### 3. Install dependencies
 
 ```bash
-pip install diffusers transformers einops scipy opencv-python tqdm pillow onnxruntime onnx safetensors accelerate peft
+pip install diffusers transformers einops scipy opencv-python tqdm pillow onnxruntime onnx safetensors accelerate peft imageio torchvision
 ```
 
 > [!IMPORTANT]  
