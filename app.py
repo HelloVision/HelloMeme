@@ -73,6 +73,21 @@ with gr.Blocks() as app:
                                trans_ratio, crop_reference, cntrl_version, version, stylize, checkpoint],
                        outputs=result_img,
                        api_name="Image Generation")
+        gr.Examples(
+            examples=[
+                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'SD1.5'],
+                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'krnl/realisticVisionV60B1_v51VAE'],
+                ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'liamhvn/disney-pixar-cartoon-b'],
+            ],
+            fn=img_gen_fnc,
+            inputs=[ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
+                    crop_reference, cntrl_version, version, stylize, checkpoint],
+            outputs=result_img,
+            cache_examples=False,
+        )
 
     with gr.Tab("Video Generation"):
         with gr.Row():
@@ -122,4 +137,18 @@ with gr.Blocks() as app:
                                crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint, fps15],
                        outputs=result_video,
                        api_name="Video Generation")
+        gr.Examples(
+            examples=[
+                ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, 'krnl/realisticVisionV60B1_v51VAE', True],
+                ['data/reference_images/kjl.jpg', 'data/drive_videos/jue.mp4', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, 'liamhvn/disney-pixar-cartoon-b', True],
+            ],
+            fn=video_gen_fnc,
+            inputs=[ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
+                               crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint, fps15],
+            outputs=result_video,
+            cache_examples=False,
+        )
+
 app.launch(inbrowser=True)
