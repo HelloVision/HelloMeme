@@ -79,13 +79,10 @@ We recommend setting up the environment with conda.
 
 ```bash
 pip install gradio
-pip install imageio[ffmpeg]
-
-run python app.py
+python app.py
 ```
 
 After run the app, all models will be downloaded.
-Longer the driver video, more VRAM will need. 
 
 ## Examples
 
