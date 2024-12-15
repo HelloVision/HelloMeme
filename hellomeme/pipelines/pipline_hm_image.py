@@ -262,7 +262,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
 
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
         base_noise = torch.randn_like(ref_latents, device=device, dtype=prompt_embeds.dtype)
-        latents = self.scheduler.add_noise(ref_latents, base_noise, latent_timestep)
+        latents = base_noise * self.scheduler.init_noise_sigma
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         self._num_timesteps = len(timesteps)
