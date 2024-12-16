@@ -26,25 +26,27 @@ from hellomeme.utils import (get_drive_pose,
                              ff_cat_video_and_audio,
                              ff_change_fps,
                              load_face_toolkits,
+                             generate_random_string,
                              append_pipline_weights)
 from hellomeme.pipelines import HMVideoPipeline, HMImagePipeline
 
 DEFAULT_PROMPT = '(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture'
 
 class Generator(object):
-    def __init__(self, gpu_id=0, dtype=torch.float16):
+    def __init__(self, gpu_id=0, dtype=torch.float16, modelscope=False):
+        self.modelscope = modelscope
         self.gpu_id = gpu_id
         self.dtype = dtype
-        self.toolkits = load_face_toolkits(gpu_id=gpu_id, dtype=dtype)
+        self.toolkits = load_face_toolkits(gpu_id=gpu_id, dtype=dtype, modelscope=modelscope)
         self.image_pipeline = None
         self.image_params_token = ''
         self.video_pipeline = None
         self.video_params_token = ''
 
     @torch.no_grad()
-    def pre_download_hf_weights(self):
-        self.load_video_pipeline_hf(hf_path="krnl/realisticVisionV60B1_v51VAE", stylize='x2', version='v1')
-        self.load_video_pipeline_hf(hf_path="liamhvn/disney-pixar-cartoon-b", stylize='x2', version='v2')
+    def pre_download_hf_weights(self, checkpoint_dirs):
+        for idx, checkpoint_dir in enumerate(checkpoint_dirs):
+            self.load_video_pipeline_hf(hf_path=checkpoint_dir, stylize='x2', version='v1' if idx % 2 == 0 else 'v2')
 
     @torch.no_grad()
     def load_image_pipeline_hf(self, hf_path="SD1.5", stylize='x1', version='v2'):
@@ -55,11 +57,18 @@ class Generator(object):
 
         if self.image_pipeline is not None:
             del self.image_pipeline
-        self.image_pipeline = HMImagePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+
+        if self.modelscope:
+            from modelscope import snapshot_download
+            sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
+        else:
+            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+
+        self.image_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
         self.image_pipeline.to(dtype=self.dtype)
-        self.image_pipeline.caryomitosis(version=version)
+        self.image_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
         append_pipline_weights2(self.image_pipeline, hf_path, stylize=stylize)
-        self.image_pipeline.insert_hm_modules(dtype=self.dtype, version=version)
+        self.image_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
 
     @torch.no_grad()
     def load_image_pipeline(self, checkpoint_path, vae_path, lora_path, stylize='x1', version='v2'):
@@ -68,13 +77,19 @@ class Generator(object):
             return
         self.image_params_token = new_token
 
+        if self.modelscope:
+            from modelscope import snapshot_download
+            sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
+        else:
+            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+
         if self.image_pipeline is not None:
             del self.image_pipeline
-        self.image_pipeline = HMImagePipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+        self.image_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
         self.image_pipeline.to(dtype=self.dtype)
-        self.image_pipeline.caryomitosis(version=version)
+        self.image_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
         append_pipline_weights(self.image_pipeline, checkpoint_path, lora_path, vae_path, stylize=stylize)
-        self.image_pipeline.insert_hm_modules(dtype=self.dtype, version=version)
+        self.image_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
 
     @torch.no_grad()
     def load_video_pipeline_hf(self, hf_path="SD1.5", stylize='x1', version='v2'):
@@ -83,13 +98,19 @@ class Generator(object):
             return
         self.video_params_token = new_token
 
+        if self.modelscope:
+            from modelscope import snapshot_download
+            sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
+        else:
+            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+
         if self.video_pipeline is not None:
             del self.video_pipeline
-        self.video_pipeline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+        self.video_pipeline = HMVideoPipeline.from_pretrained(sd1_5_dir)
         self.video_pipeline.to(dtype=self.dtype)
-        self.video_pipeline.caryomitosis(version=version)
+        self.video_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
         append_pipline_weights2(self.video_pipeline, hf_path, stylize=stylize)
-        self.video_pipeline.insert_hm_modules(dtype=self.dtype, version=version)
+        self.video_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
 
     @torch.no_grad()
     def load_video_pipeline(self, checkpoint_path, vae_path, lora_path, stylize='x1', version='v2'):
@@ -98,13 +119,19 @@ class Generator(object):
             return
         self.video_params_token = new_token
 
+        if self.modelscope:
+            from modelscope import snapshot_download
+            sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
+        else:
+            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+
         if self.video_pipeline is not None:
             del self.video_pipeline
-        self.video_pipeline = HMVideoPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+        self.video_pipeline = HMVideoPipeline.from_pretrained(sd1_5_dir)
         self.video_pipeline.to(dtype=self.dtype)
-        self.video_pipeline.caryomitosis(version=version)
+        self.video_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
         append_pipline_weights(self.video_pipeline, checkpoint_path, lora_path, vae_path, stylize=stylize)
-        self.video_pipeline.insert_hm_modules(dtype=self.dtype, version=version)
+        self.video_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
 
     @torch.no_grad()
     def image_generate(self,
@@ -216,9 +243,10 @@ class Generator(object):
         device = self.toolkits['device']
         save_size = 512
         input_ref_pil, ref_rot, ref_trans = self.ref_image_preprocess(ref_image, crop_reference, save_size)
+        random_str = generate_random_string(8)
 
-        drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + '_proced.mp4'
-        save_video_path = osp.splitext(drive_video_path)[0] + '_save.mp4'
+        drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + f'_{random_str}_proced.mp4'
+        save_video_path = osp.splitext(drive_video_path)[0] + f'_{random_str}_save.mp4'
 
         if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
         if fps15:
@@ -270,15 +298,15 @@ class Generator(object):
         if osp.exists(save_video_path): os.remove(save_video_path)
         imageio.mimsave(save_video_path, res_frames_np, fps=fps)
 
-        save_video_audio_path = osp.splitext(drive_video_path)[0] + '_audio.mp4'
+        save_video_audio_path = osp.splitext(drive_video_path)[0] + f'_{random_str}_audio.mp4'
         if osp.exists(save_video_audio_path): os.remove(save_video_audio_path)
         ff_cat_video_and_audio(save_video_path, drive_video_path_fps15, save_video_audio_path)
         # if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
 
         if not osp.exists(save_video_audio_path):
             save_video_audio_path = save_video_path
-        # else:
-        #     os.remove(save_video_path)
+        else:
+            os.remove(save_video_path)
 
         return save_video_audio_path
 

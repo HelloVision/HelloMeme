@@ -7,8 +7,36 @@
 @Date   : 12/12/2024
 @Desc   : 
 """
+import os
+
 import gradio as gr
 from generator import Generator, DEFAULT_PROMPT
+import sys
+import importlib.metadata
+
+installed_packages = [package.name for package in importlib.metadata.distributions()]
+
+REQUIRED = {
+    'diffusers':'0.31.0', 'transformers':'4.46.3', 'einops':'0.8.0', 'opencv-python':'4.10.0.84', 'tqdm':'4.67.0',
+    'pillow':'10.2.0', 'onnxruntime-gpu':'1.18.1', 'onnx':'1.17.0', 'safetensors':'0.4.5',
+    'accelerate':'1.1.1', 'peft':'0.13.2'
+}
+
+missing = [name for name in REQUIRED.keys() if name not in installed_packages]
+missing_params = ' '.join([f'{k}=={REQUIRED[k]}' for k in missing])
+print("missing pkgs", missing_params)
+
+# if missing:
+#     os.system(f'{sys.executable} -m pip install {missing_params}')
+
+modelscope = False
+if modelscope:
+    from modelscope import snapshot_download
+    realistic_checkpoint_dir = snapshot_download('songkey/realisticVisionV60B1_v51VAE')
+    disney_pixar_checkpoint_dir = snapshot_download('songkey/disney-pixar-cartoon-b')
+else:
+    realistic_checkpoint_dir = 'krnl/realisticVisionV60B1_v51VAE'
+    disney_pixar_checkpoint_dir = 'liamhvn/disney-pixar-cartoon-b'
 
 with gr.Blocks() as app:
     gr.Markdown('''
@@ -26,8 +54,8 @@ with gr.Blocks() as app:
         </div>
     ''')
 
-    gen = Generator(gpu_id=0)
-    gen.pre_download_hf_weights()
+    gen = Generator(gpu_id=0, modelscope=modelscope)
+    gen.pre_download_hf_weights([realistic_checkpoint_dir, disney_pixar_checkpoint_dir])
     with gr.Tab("Image Generation"):
         with gr.Row():
             ref_img = gr.Image(type="pil", width=512, height=512)
@@ -35,14 +63,14 @@ with gr.Blocks() as app:
             result_img = gr.Image(type="pil", width=512, height=512)
         exec_btn = gr.Button("Run")
         with gr.Row():
-            checkpoint = gr.Dropdown(choices=['SD1.5', 'krnl/realisticVisionV60B1_v51VAE',
-                                              'liamhvn/disney-pixar-cartoon-b'], value="krnl/realisticVisionV60B1_v51VAE", label="Checkpoint")
+            checkpoint = gr.Dropdown(choices=['SD1.5', realistic_checkpoint_dir,
+                                              disney_pixar_checkpoint_dir], value=realistic_checkpoint_dir, label="Checkpoint")
             version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
             cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
             stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
             with gr.Row():
-                num_steps = gr.Slider(1, 50, 25, step=1, label="Steps")
+                num_steps = gr.Slider(1, 50, 30, step=1, label="Steps")
                 guidance = gr.Slider(1.0, 10.0, 2.2, step=0.1, label="Guidance", interactive=True)
             with gr.Column():
                 prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
@@ -75,12 +103,12 @@ with gr.Blocks() as app:
                        api_name="Image Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'SD1.5'],
-                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'krnl/realisticVisionV60B1_v51VAE'],
-                ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'liamhvn/disney-pixar-cartoon-b'],
+                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', realistic_checkpoint_dir],
+                ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', disney_pixar_checkpoint_dir],
             ],
             fn=img_gen_fnc,
             inputs=[ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
@@ -96,14 +124,14 @@ with gr.Blocks() as app:
             result_video = gr.Video(width=512, height=512, autoplay=True, loop=True, label="Generated Video")
         exec_btn = gr.Button("Run")
         with gr.Row():
-            checkpoint = gr.Dropdown(choices=['SD1.5', 'krnl/realisticVisionV60B1_v51VAE',
-                                              'liamhvn/disney-pixar-cartoon-b'], value="krnl/realisticVisionV60B1_v51VAE", label="Checkpoint")
+            checkpoint = gr.Dropdown(choices=['SD1.5', realistic_checkpoint_dir,
+                                              disney_pixar_checkpoint_dir], value=realistic_checkpoint_dir, label="Checkpoint")
             version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
             cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
             stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
             with gr.Row():
-                num_steps = gr.Slider(1, 50, 25, step=1, label="Steps", interactive=True)
+                num_steps = gr.Slider(1, 50, 30, step=1, label="Steps", interactive=True)
                 guidance = gr.Slider(1.0, 10.0, 2.2, step=0.1, label="Guidance", interactive=True)
                 patch_overlap = gr.Slider(1, 5, 4, step=1, label="Patch Overlap", interactive=True)
             with gr.Column():
@@ -139,10 +167,10 @@ with gr.Blocks() as app:
                        api_name="Video Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, 'krnl/realisticVisionV60B1_v51VAE', True],
-                ['data/reference_images/kjl.jpg', 'data/drive_videos/jue.mp4', 25, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, 'liamhvn/disney-pixar-cartoon-b', True],
+                ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, realistic_checkpoint_dir, True],
+                ['data/reference_images/kjl.jpg', 'data/drive_videos/jue.mp4', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, disney_pixar_checkpoint_dir, True],
             ],
             fn=video_gen_fnc,
             inputs=[ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,

@@ -12,6 +12,7 @@ import os
 import cv2
 import os.path as osp
 import numpy as np
+import random
 from tqdm import tqdm
 import torch
 from PIL import Image
@@ -26,24 +27,38 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (convert_ldm_
 from .tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
 from transformers import CLIPVisionModelWithProjection
 
+def generate_random_string(length=8):
+    characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    result = ''
+    for i in range(0, length):
+        result += random.choice(characters)
+    return result
+
 def get_torch_device(gpu_id=-1):
     if gpu_id < 0: return torch.device("cpu")
     gpu_id = min(max(-1, gpu_id), torch.cuda.device_count())
     return torch.device(f"cuda:{gpu_id}")
 
-def load_face_toolkits(dtype=torch.float16, gpu_id=-1):
-    image_encoder = CLIPVisionModelWithProjection.from_pretrained(
-        'h94/IP-Adapter', subfolder='models/image_encoder')
+def load_face_toolkits(dtype=torch.float16, gpu_id=-1, modelscope=False):
+    if modelscope:
+        from modelscope import snapshot_download
+        pd_fpg_motion = FanEncoder.from_pretrained(snapshot_download('songkey/pd_fgc_motion'))
+        image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+            snapshot_download('songkey/IP-Adapter'), subfolder='models/image_encoder')
+    else:
+        pd_fpg_motion = FanEncoder.from_pretrained("songkey/pd_fgc_motion")
+        image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+            'h94/IP-Adapter', subfolder='models/image_encoder')
+
     image_encoder.to(dtype=dtype).cpu()
-    pd_fpg_motion = FanEncoder.from_pretrained("songkey/pd_fgc_motion")
     pd_fpg_motion.to(dtype=dtype).cpu()
     return dict(
             device=get_torch_device(gpu_id),
             dtype=dtype,
             pd_fpg_motion=pd_fpg_motion,
-            face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id), reset=False),
-            harkit_bs=HelloARKitBSPred(gpu_id=gpu_id),
-            h3dmm=Hello3DMMPred(gpu_id=gpu_id),
+            face_aligner=HelloCameraDemo(face_alignment_module=HelloFaceAlignment(gpu_id=gpu_id, modelscope=modelscope), reset=False),
+            harkit_bs=HelloARKitBSPred(gpu_id=gpu_id, modelscope=modelscope),
+            h3dmm=Hello3DMMPred(gpu_id=gpu_id, modelscope=modelscope),
             image_encoder=image_encoder
         )
 

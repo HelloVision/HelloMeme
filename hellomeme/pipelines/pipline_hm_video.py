@@ -26,7 +26,7 @@ from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNe
 from ..models import HMReferenceAdapter
 
 class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
-    def caryomitosis(self, version, **kwargs):
+    def caryomitosis(self, version, modelscope=False, **kwargs):
         if hasattr(self, "unet_ref"):
             del self.unet_ref
         self.unet_ref = HMDenoising3D.from_unet2d(self.unet)
@@ -37,11 +37,19 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         self.unet_pre = HMDenoising3D.from_unet2d(self.unet)
         self.unet_pre.cpu()
 
+        if modelscope:
+            from modelscope import snapshot_download
+            hm_animatediff_dir = snapshot_download('songkey/hm_animatediff_frame12')
+            hm2_animatediff_dir = snapshot_download('songkey/hm2_animatediff_frame12')
+        else:
+            hm_animatediff_dir = 'songkey/hm_animatediff_frame12'
+            hm2_animatediff_dir = 'songkey/hm2_animatediff_frame12'
+
         self.num_frames = 12
         if version == 'v1':
-            adapter = MotionAdapter.from_pretrained("songkey/hm_animatediff_frame12", torch_dtype=torch.float16)
+            adapter = MotionAdapter.from_pretrained(hm_animatediff_dir, torch_dtype=torch.float16)
         else:
-            adapter = MotionAdapter.from_pretrained("songkey/hm2_animatediff_frame12", torch_dtype=torch.float16)
+            adapter = MotionAdapter.from_pretrained(hm2_animatediff_dir, torch_dtype=torch.float16)
         unet = HMDenoisingMotion.from_unet2d(unet=self.unet, motion_adapter=adapter, load_weights=True)
         # todo: 不够优雅
         del self.unet
@@ -49,11 +57,27 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         self.vae_decode = copy.deepcopy(self.vae)
 
-    def insert_hm_modules(self, version, dtype):
-        if version == 'v1':
-            hm_adapter = HMReferenceAdapter.from_pretrained('songkey/hm_reference')
+    def insert_hm_modules(self, version, dtype, modelscope=False):
+        if modelscope:
+            from modelscope import snapshot_download
+            hm_reference_dir = snapshot_download('songkey/hm_reference')
+            hm2_reference_dir = snapshot_download('songkey/hm2_reference')
+            hm_control_dir = snapshot_download('songkey/hm_control')
+            hm_control2_dir = snapshot_download('songkey/hm_control2')
+            hm2_control_dir = snapshot_download('songkey/hm2_control')
+            hm2_control2_dir = snapshot_download('songkey/hm2_control2')
         else:
-            hm_adapter = HMReferenceAdapter.from_pretrained('songkey/hm2_reference')
+            hm_reference_dir = 'songkey/hm_reference'
+            hm2_reference_dir = 'songkey/hm2_reference'
+            hm_control_dir = 'songkey/hm_control'
+            hm_control2_dir = 'songkey/hm_control2'
+            hm2_control_dir = 'songkey/hm2_control'
+            hm2_control2_dir = 'songkey/hm2_control2'
+
+        if version == 'v1':
+            hm_adapter = HMReferenceAdapter.from_pretrained(hm_reference_dir)
+        else:
+            hm_adapter = HMReferenceAdapter.from_pretrained(hm2_reference_dir)
         if isinstance(self.unet, HMDenoisingMotion):
             self.unet.insert_reference_adapter(hm_adapter)
             self.unet.to(device='cpu', dtype=dtype).eval()
@@ -68,18 +92,18 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         if hasattr(self, "mp_control"):
             del self.mp_control
         if version == 'v1':
-            self.mp_control = HMControlNet.from_pretrained('songkey/hm_control')
+            self.mp_control = HMControlNet.from_pretrained(hm_control_dir)
         else:
-            self.mp_control = HMV2ControlNet.from_pretrained('songkey/hm2_control')
+            self.mp_control = HMV2ControlNet.from_pretrained(hm2_control_dir)
 
         self.mp_control.to(device='cpu', dtype=dtype).eval()
 
         if hasattr(self, "mp_control2"):
             del self.mp_control2
         if version == 'v1':
-            self.mp_control2 = HMControlNet2.from_pretrained('songkey/hm_control2')
+            self.mp_control2 = HMControlNet2.from_pretrained(hm_control2_dir)
         else:
-            self.mp_control2 = HMV2ControlNet2.from_pretrained('songkey/hm2_control2')
+            self.mp_control2 = HMV2ControlNet2.from_pretrained(hm2_control2_dir)
         self.mp_control2.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()

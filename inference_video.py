@@ -21,7 +21,7 @@ if __name__ == '__main__':
     vae_path = "same as checkpoint"
 
     gpu_id = 0
-    generator = Generator(gpu_id=gpu_id)
+    generator = Generator(gpu_id=gpu_id, modelscope=False)
     ref_image = Image.open(ref_img_path)
     generator.load_video_pipeline(checkpoint_path, vae_path, lora_path, stylize='x1', version='v2')
 

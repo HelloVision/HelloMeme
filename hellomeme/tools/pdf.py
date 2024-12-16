@@ -173,7 +173,7 @@ class FAN_use(nn.Module):
 
 class FanEncoder(ModelMixin, ConfigMixin):
     @register_to_config
-    def __init__(self,pose_dim=6, eye_dim=6):
+    def __init__(self, pose_dim=6, eye_dim=6):
         super().__init__()
 
         self.model = FAN_use()
