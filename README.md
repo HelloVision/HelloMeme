@@ -19,7 +19,7 @@
     <a href='https://arxiv.org/pdf/2410.22901'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a>
     <a href='https://huggingface.co/songkey'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a>
     <a href='https://github.com/HelloVision/ComfyUI_HelloMeme'><img src='https://img.shields.io/badge/ComfyUI-UI-blue'></a>
-    <a href='https://www.modelscope.cn/studios/songkey/HelloMeme/summary'><img src='https://img.shields.io/badge/Demo-modelscpe-red'></a>
+    <a href='https://www.modelscope.cn/studios/songkey/HelloMeme'><img src='https://img.shields.io/badge/Demo-modelscpe-red'></a>
 </div>
 
 <p align="center">
@@ -29,6 +29,7 @@
 ## 🔆 New Features/Updates
 
 - ☐ [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) for ablation experiments.
+- ✅ `12/17/2024` Added modelscope [Demo](https://www.modelscope.cn/studios/songkey/HelloMeme).
 - ✅ `12/13/2024` Rewrite the code for the Gradio app.
 - ✅ `12/12/2024` Added HelloMeme V2 (synchronize code from the [`ComfyUI`](https://github.com/HelloVision/ComfyUI_HelloMeme) repo).
 - ✅ `11/14/2024` Added the `HMControlNet2` module
