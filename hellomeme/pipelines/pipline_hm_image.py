@@ -15,9 +15,8 @@ import torch
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
-from diffusers.utils import (
-    deprecate,
-)
+from diffusers.utils import deprecate
+from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
@@ -220,6 +219,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
 
         ref_latents = torch.cat(ref_latents, dim=0)
         ref_latents = self.vae.config.scaling_factor * ref_latents
+        c, h, w = ref_latents.shape[1:]
 
         condition = drive_params['condition'].clone().to(device=device)
         if self.do_classifier_free_guidance:
@@ -277,7 +277,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             ).to(device=device, dtype=prompt_embeds.dtype)
 
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
-        base_noise = torch.randn_like(ref_latents, device=device, dtype=prompt_embeds.dtype)
+        base_noise = randn_tensor([batch_size, c, h, w], dtype=prompt_embeds.dtype, generator=generator).to(device=device)
         latents = base_noise * self.scheduler.init_noise_sigma
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order

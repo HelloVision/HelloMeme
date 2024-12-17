@@ -103,12 +103,12 @@ with gr.Blocks() as app:
                        api_name="Image Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'SD1.5'],
-                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', realistic_checkpoint_dir],
                 ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', disney_pixar_checkpoint_dir],
+                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', realistic_checkpoint_dir],
+                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'SD1.5'],
             ],
             fn=img_gen_fnc,
             inputs=[ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
