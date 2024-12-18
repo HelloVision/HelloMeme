@@ -70,8 +70,8 @@ with gr.Blocks() as app:
             stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
             with gr.Row():
-                num_steps = gr.Slider(1, 50, 30, step=1, label="Steps")
-                guidance = gr.Slider(1.0, 10.0, 2.2, step=0.1, label="Guidance", interactive=True)
+                num_steps = gr.Slider(1, 50, 25, step=1, label="Steps")
+                guidance = gr.Slider(1.0, 10.0, 2.0, step=0.1, label="Guidance", interactive=True)
             with gr.Column():
                 prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
                 negative_prompt = gr.Textbox(label="Negative Prompt", value="")
@@ -103,11 +103,11 @@ with gr.Blocks() as app:
                        api_name="Image Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', disney_pixar_checkpoint_dir],
-                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', realistic_checkpoint_dir],
-                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/zzj.jpg', 'data/drive_images/yao.jpg', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 'SD1.5'],
             ],
             fn=img_gen_fnc,
@@ -131,8 +131,8 @@ with gr.Blocks() as app:
             stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
             with gr.Row():
-                num_steps = gr.Slider(1, 50, 30, step=1, label="Steps", interactive=True)
-                guidance = gr.Slider(1.0, 10.0, 2.2, step=0.1, label="Guidance", interactive=True)
+                num_steps = gr.Slider(1, 50, 25, step=1, label="Steps", interactive=True)
+                guidance = gr.Slider(1.0, 10.0, 2.0, step=0.1, label="Guidance", interactive=True)
                 patch_overlap = gr.Slider(1, 5, 4, step=1, label="Patch Overlap", interactive=True)
             with gr.Column():
                 prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
@@ -167,9 +167,9 @@ with gr.Blocks() as app:
                        api_name="Video Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, realistic_checkpoint_dir, True],
-                ['data/reference_images/kjl.jpg', 'data/drive_videos/jue.mp4', 30, 2.2, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/kjl.jpg', 'data/drive_videos/jue.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, disney_pixar_checkpoint_dir, True],
             ],
             fn=video_gen_fnc,
