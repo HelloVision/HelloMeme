@@ -58,9 +58,9 @@ with gr.Blocks() as app:
     gen.pre_download_hf_weights([realistic_checkpoint_dir, disney_pixar_checkpoint_dir])
     with gr.Tab("Image Generation"):
         with gr.Row():
-            ref_img = gr.Image(type="pil", width=512, height=512)
-            drive_img = gr.Image(type="pil", width=512, height=512)
-            result_img = gr.Image(type="pil", width=512, height=512)
+            ref_img = gr.Image(type="pil", label="Reference Image")
+            drive_img = gr.Image(type="pil", label="Drive Image")
+            result_img = gr.Image(type="pil", label="Generated Image")
         exec_btn = gr.Button("Run")
         with gr.Row():
             checkpoint = gr.Dropdown(choices=['SD1.5', realistic_checkpoint_dir,
@@ -119,9 +119,9 @@ with gr.Blocks() as app:
 
     with gr.Tab("Video Generation"):
         with gr.Row():
-            ref_img = gr.Image(type="pil", width=512, height=512, label="Reference Image")
-            drive_video = gr.Video(width=512, height=512, label="Drive Video")
-            result_video = gr.Video(width=512, height=512, autoplay=True, loop=True, label="Generated Video")
+            ref_img = gr.Image(type="pil", label="Reference Image")
+            drive_video = gr.Video(label="Drive Video")
+            result_video = gr.Video(autoplay=True, loop=True, label="Generated Video")
         exec_btn = gr.Button("Run")
         with gr.Row():
             checkpoint = gr.Dropdown(choices=['SD1.5', realistic_checkpoint_dir,
