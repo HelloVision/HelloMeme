@@ -62,7 +62,7 @@ class Generator(object):
             from modelscope import snapshot_download
             sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
         else:
-            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+            sd1_5_dir = 'songkey/stable-diffusion-v1-5'
 
         self.image_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
         self.image_pipeline.to(dtype=self.dtype)
@@ -81,7 +81,7 @@ class Generator(object):
             from modelscope import snapshot_download
             sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
         else:
-            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+            sd1_5_dir = 'songkey/stable-diffusion-v1-5'
 
         if self.image_pipeline is not None:
             del self.image_pipeline
@@ -102,7 +102,7 @@ class Generator(object):
             from modelscope import snapshot_download
             sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
         else:
-            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+            sd1_5_dir = 'songkey/stable-diffusion-v1-5'
 
         if self.video_pipeline is not None:
             del self.video_pipeline
@@ -123,7 +123,7 @@ class Generator(object):
             from modelscope import snapshot_download
             sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
         else:
-            sd1_5_dir = 'stable-diffusion-v1-5/stable-diffusion-v1-5'
+            sd1_5_dir = 'songkey/stable-diffusion-v1-5'
 
         if self.video_pipeline is not None:
             del self.video_pipeline
@@ -327,12 +327,3 @@ def append_pipline_weights2(pipeline, hf_path=None, stylize='x1'):
         if stylize == 'x2':
             pipeline.vae.load_state_dict(vae_state_dict, strict=True)
         del tmp_pipeline
-
-
-if __name__ == '__main__':
-    generator = Generator()
-    ref_image = Image.open("data/reference_images/trump.jpg")
-    drive_image = Image.open("data/drive_images/yao.jpg")
-    generator.load_image_pipeline()
-    result = generator.image_generate(ref_image, drive_image, 25, 2.0, 1, DEFAULT_PROMPT, '', 0.5, False, 'cntrl2')
-    result.show()

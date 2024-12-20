@@ -35,8 +35,8 @@ if modelscope:
     realistic_checkpoint_dir = snapshot_download('songkey/realisticVisionV60B1_v51VAE')
     disney_pixar_checkpoint_dir = snapshot_download('songkey/disney-pixar-cartoon-b')
 else:
-    realistic_checkpoint_dir = 'krnl/realisticVisionV60B1_v51VAE'
-    disney_pixar_checkpoint_dir = 'liamhvn/disney-pixar-cartoon-b'
+    realistic_checkpoint_dir = 'songkey/realisticVisionV60B1_v51VAE'
+    disney_pixar_checkpoint_dir = 'songkey/disney-pixar-cartoon-b'
 
 with gr.Blocks() as app:
     gr.Markdown('''
