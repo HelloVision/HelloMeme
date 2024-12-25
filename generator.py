@@ -264,6 +264,7 @@ class Generator(object):
         while ret:
             frame_list.append(frame.copy())
             ret, frame = cap.read()
+        cap.release()
 
         landmark_list = det_landmarks(self.toolkits['face_aligner'], frame_list)[1]
 
@@ -301,7 +302,7 @@ class Generator(object):
         save_video_audio_path = osp.splitext(drive_video_path)[0] + f'_{random_str}_audio.mp4'
         if osp.exists(save_video_audio_path): os.remove(save_video_audio_path)
         ff_cat_video_and_audio(save_video_path, drive_video_path_fps15, save_video_audio_path)
-        # if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
+        if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
 
         if not osp.exists(save_video_audio_path):
             save_video_audio_path = save_video_path
