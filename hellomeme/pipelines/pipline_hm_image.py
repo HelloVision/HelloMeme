@@ -18,7 +18,7 @@ from diffusers.image_processor import PipelineImageInput
 from diffusers.utils import deprecate
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
-from diffusers import StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, EulerDiscreteScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 
 from ..models import HMDenoising3D, HMControlNet, HMControlNet2, HMV2ControlNet, HMV2ControlNet2
@@ -202,11 +202,18 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         # 4. Preprocess
         image = self.image_processor.preprocess(image).to(device=device, dtype=prompt_embeds.dtype)
 
+        scheduler = EulerDiscreteScheduler(
+            num_train_timesteps=1000,
+            beta_start=0.00085,
+            beta_end=0.012,
+            beta_schedule="scaled_linear",
+        )
+
         # 5. set timesteps
         timesteps, num_inference_steps = retrieve_timesteps(
-            self.scheduler, num_inference_steps, device, timesteps, sigmas
+            scheduler, num_inference_steps, device, timesteps, sigmas
         )
-        timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
+        # timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
 
         # 6. Prepare reference latents
@@ -278,9 +285,9 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
 
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
         base_noise = randn_tensor([batch_size, c, h, w], dtype=prompt_embeds.dtype, generator=generator).to(device=device)
-        latents = base_noise * self.scheduler.init_noise_sigma
+        latents = base_noise * scheduler.init_noise_sigma
         # 8. Denoising loop
-        num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
+        num_warmup_steps = len(timesteps) - num_inference_steps * scheduler.order
         self._num_timesteps = len(timesteps)
         self.unet.to(device=device)
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -290,7 +297,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
 
                 # expand the latents if we are doing classifier free guidance
                 latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
-                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                latent_model_input = scheduler.scale_model_input(latent_model_input, t)
 
                 # predict the noise residual
                 noise_pred = self.unet(
@@ -311,7 +318,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
                     noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+                latents = scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
 
                 if callback_on_step_end is not None:
                     callback_kwargs = {}
@@ -324,10 +331,10 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
                     negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
 
                 # call the callback, if provided
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % scheduler.order == 0):
                     progress_bar.update()
                     if callback is not None and i % callback_steps == 0:
-                        step_idx = i // getattr(self.scheduler, "order", 1)
+                        step_idx = i // getattr(scheduler, "order", 1)
                         callback(step_idx, t, latents)
 
         self.unet.cpu()

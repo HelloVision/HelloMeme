@@ -379,19 +379,26 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
 
         drive_idx_chunks[-1] = list(range(drive_idx_chunks[-1][0], paded_video_len))
 
+        scheduler = EulerDiscreteScheduler(
+            num_train_timesteps=1000,
+            beta_start=0.00085,
+            beta_end=0.012,
+            beta_schedule="scaled_linear",
+        )
+
         # 5. set timesteps
         timesteps, num_inference_steps = retrieve_timesteps(
-            self.scheduler, num_inference_steps, device, timesteps, sigmas
+            scheduler, num_inference_steps, device, timesteps, sigmas
         )
-        timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
+        # timesteps, num_inference_steps = self.get_timesteps(num_inference_steps, strength, device)
         latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
 
         # 8. Denoising loop
-        num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
+        num_warmup_steps = len(timesteps) - num_inference_steps * scheduler.order
         self._num_timesteps = len(timesteps)
 
         base_noise = randn_tensor([batch_size, c, paded_video_len, h, w], dtype=prompt_embeds.dtype, generator=generator)
-        latents = self.scheduler.add_noise(pre_latents, base_noise, latent_timestep)
+        latents = scheduler.add_noise(pre_latents, base_noise, latent_timestep)
 
         self.unet.to(device=device)
         with self.progress_bar(total=num_inference_steps) as progress_bar:
@@ -403,7 +410,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                 latent_model_input_all = torch.cat([latents.clone(), latents.clone()], dim=0) if \
                     self.do_classifier_free_guidance else latents.clone()
 
-                latent_model_input_all = self.scheduler.scale_model_input(latent_model_input_all, t)
+                latent_model_input_all = scheduler.scale_model_input(latent_model_input_all, t)
                 for cidx, chunk in enumerate(drive_idx_chunks):
                     if self.interrupt:
                         continue
@@ -435,7 +442,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred.cpu(), t, latents,
+                latents = scheduler.step(noise_pred.cpu(), t, latents,
                                               **extra_step_kwargs, return_dict=False)[0]
 
                 if callback_on_step_end is not None:
@@ -449,11 +456,11 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
                     negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
 
                 # call the callback, if provided
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % scheduler.order == 0):
                     progress_bar.set_description(f"GEN stage2")
                     progress_bar.update()
                     if callback is not None and i % callback_steps == 0:
-                        step_idx = i // getattr(self.scheduler, "order", 1)
+                        step_idx = i // getattr(scheduler, "order", 1)
                         callback(step_idx, t, latents)
         self.unet.cpu()
         latents_res = latents / self.vae.config.scaling_factor
