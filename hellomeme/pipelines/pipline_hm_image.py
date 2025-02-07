@@ -13,18 +13,18 @@ import copy
 from typing import Any, Callable, Dict, List, Optional, Union
 import torch
 
+from diffusers import EulerDiscreteScheduler
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
 from diffusers.utils import deprecate
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
-from diffusers import StableDiffusionImg2ImgPipeline, EulerDiscreteScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 
-from ..models import HMDenoising3D, HMControlNet, HMControlNet2, HMV2ControlNet, HMV2ControlNet2
+from ..models import HMDenoising3D, HMControlNet, HMControlNet2, HMV2ControlNet, HMV2ControlNet2, HMPipeline
 from ..models import HMReferenceAdapter
 
-class HMImagePipeline(StableDiffusionImg2ImgPipeline):
+class HMImagePipeline(HMPipeline):
     def caryomitosis(self, **kwargs):
         if hasattr(self, "unet_ref"):
             del self.unet_ref
@@ -38,7 +38,10 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             self.unet = unet
             self.unet.cpu()
 
+        self.vae.cpu()
         self.vae_decode = copy.deepcopy(self.vae)
+        self.text_encoder.cpu()
+        self.text_encoder_ref = copy.deepcopy(self.text_encoder)
 
     def insert_hm_modules(self, version, dtype, modelscope=False):
         if modelscope:
@@ -170,8 +173,24 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
             self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
         )
 
+        self.text_encoder_ref.to(device=device)
+        prompt_embeds_ref, negative_prompt_embeds_ref = self.encode_prompt_sk(
+            self.text_encoder_ref,
+            prompt,
+            device,
+            num_images_per_prompt,
+            self.do_classifier_free_guidance,
+            negative_prompt,
+            prompt_embeds=prompt_embeds,
+            negative_prompt_embeds=negative_prompt_embeds,
+            lora_scale=text_encoder_lora_scale,
+            clip_skip=self.clip_skip,
+        )
+        self.text_encoder_ref.cpu()
+
         self.text_encoder.to(device=device)
-        prompt_embeds, negative_prompt_embeds = self.encode_prompt(
+        prompt_embeds, negative_prompt_embeds = self.encode_prompt_sk(
+            self.text_encoder,
             prompt,
             device,
             num_images_per_prompt,
@@ -189,6 +208,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         # to avoid doing two forward passes
         if self.do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+            prompt_embeds_ref = torch.cat([negative_prompt_embeds_ref, prompt_embeds_ref])
 
         if ip_adapter_image is not None or ip_adapter_image_embeds is not None:
             image_embeds = self.prepare_ip_adapter_image_embeds(
@@ -270,7 +290,7 @@ class HMImagePipeline(StableDiffusionImg2ImgPipeline):
         cached_res = self.unet_ref(
             latent_model_input.unsqueeze(2),
             0,
-            encoder_hidden_states=prompt_embeds,
+            encoder_hidden_states=prompt_embeds_ref,
             return_dict=False,
         )[1]
         self.unet_ref.cpu()

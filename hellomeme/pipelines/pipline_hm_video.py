@@ -20,12 +20,13 @@ from diffusers.utils import deprecate
 from diffusers.utils.torch_utils import randn_tensor
 
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
-from diffusers import StableDiffusionImg2ImgPipeline, MotionAdapter, EulerDiscreteScheduler
+from diffusers import MotionAdapter, EulerDiscreteScheduler
 
-from ..models import HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNet2, HMV2ControlNet, HMV2ControlNet2
+from ..models import (HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNet2,
+                      HMV2ControlNet, HMV2ControlNet2, HMPipeline)
 from ..models import HMReferenceAdapter
 
-class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
+class HMVideoPipeline(HMPipeline):
     def caryomitosis(self, version, modelscope=False, **kwargs):
         if hasattr(self, "unet_ref"):
             del self.unet_ref
@@ -55,7 +56,10 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         del self.unet
         self.unet = unet
 
+        self.vae.cpu()
         self.vae_decode = copy.deepcopy(self.vae)
+        self.text_encoder.cpu()
+        self.text_encoder_ref = copy.deepcopy(self.text_encoder)
 
     def insert_hm_modules(self, version, dtype, modelscope=False):
         if modelscope:
@@ -192,8 +196,24 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         text_encoder_lora_scale = (
             self.cross_attention_kwargs.get("scale", None) if self.cross_attention_kwargs is not None else None
         )
+        self.text_encoder_ref.to(device=device)
+        prompt_embeds_ref, negative_prompt_embeds_ref = self.encode_prompt_sk(
+            self.text_encoder_ref,
+            prompt,
+            device,
+            num_images_per_prompt,
+            self.do_classifier_free_guidance,
+            negative_prompt,
+            prompt_embeds=prompt_embeds,
+            negative_prompt_embeds=negative_prompt_embeds,
+            lora_scale=text_encoder_lora_scale,
+            clip_skip=self.clip_skip,
+        )
+        self.text_encoder_ref.cpu()
+
         self.text_encoder.to(device=device)
-        prompt_embeds, negative_prompt_embeds = self.encode_prompt(
+        prompt_embeds, negative_prompt_embeds = self.encode_prompt_sk(
+            self.text_encoder,
             prompt,
             device,
             num_images_per_prompt,
@@ -210,6 +230,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
         # to avoid doing two forward passes
         if self.do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
+            prompt_embeds_ref = torch.cat([negative_prompt_embeds_ref, prompt_embeds_ref])
 
         if ip_adapter_image is not None or ip_adapter_image_embeds is not None:
             image_embeds = self.prepare_ip_adapter_image_embeds(
@@ -262,7 +283,7 @@ class HMVideoPipeline(StableDiffusionImg2ImgPipeline):
             torch.cat([torch.zeros_like(ref_latents), ref_latents], dim=0) if
             self.do_classifier_free_guidance else ref_latents,
             0,
-            encoder_hidden_states=prompt_embeds,
+            encoder_hidden_states=prompt_embeds_ref,
             return_dict=False,
         )[1]
         self.unet_ref.cpu()

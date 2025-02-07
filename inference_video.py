@@ -8,16 +8,42 @@
 @Desc   : 
 """
 
-from generator import Generator, DEFAULT_PROMPT
+import os
+from generator import Generator, DEFAULT_PROMPT, MODEL_CONFIG
 
 from PIL import Image
 
-if __name__ == '__main__':
-    ref_img_path = r"data/reference_images/trump.jpg"
-    drive_video_path = r"data/drive_videos/jue.mp4"
+lora_names = [None] + list(MODEL_CONFIG['sd15']['loras'].keys())
+checkpoint_names = list(MODEL_CONFIG['sd15']['checkpoints'].keys())
 
-    lora_path = "None"
-    checkpoint_path = "None"
+print("Available lora models: ", lora_names)
+print("Available checkpoints: ", checkpoint_names)
+
+modelscope = False
+
+if __name__ == '__main__':
+    ref_img_path = r"data/reference_images/toon.png"
+    drive_video_path = r"data/drive_videos/amns.mp4"
+
+    lora = lora_names[3]
+    tmp_lora_info = MODEL_CONFIG['sd15']['loras'][lora]
+    checkpoint = checkpoint_names[1]
+
+    print("lora: ", lora, "checkpoint: ", checkpoint)
+    if modelscope:
+        from modelscope import snapshot_download
+        checkpoint_path = snapshot_download(MODEL_CONFIG['sd15']['checkpoints'][checkpoint])
+        if lora is None:
+            lora_path = None
+        else:
+            lora_path = os.path.join(snapshot_download(tmp_lora_info[0]), tmp_lora_info[1])
+    else:
+        checkpoint_path = MODEL_CONFIG['sd15']['checkpoints'][checkpoint]
+        if lora is None:
+            lora_path = None
+        else:
+            from huggingface_hub import hf_hub_download
+            lora_path = hf_hub_download(tmp_lora_info[0], filename=tmp_lora_info[1])
     vae_path = "same as checkpoint"
 
     gpu_id = 0

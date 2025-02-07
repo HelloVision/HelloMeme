@@ -25,6 +25,7 @@ from safetensors import safe_open
 from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (convert_ldm_unet_checkpoint,
                                                                     convert_ldm_vae_checkpoint)
 from .tools import Hello3DMMPred, HelloARKitBSPred, HelloFaceAlignment, HelloCameraDemo, FanEncoder
+from .pipelines import HMImagePipeline
 from transformers import CLIPVisionModelWithProjection
 
 def generate_random_string(length=8):
@@ -63,51 +64,56 @@ def load_face_toolkits(dtype=torch.float16, gpu_id=-1, modelscope=False):
             image_encoder=image_encoder
         )
 
-def append_pipline_weights(pipeline, checkpoint_path=None, lora_path=None, vae_path=None, stylize='x1'):
+def append_pipline_weights(pipeline, checkpoint_path=None, lora_path=None, vae_path=None, stylize='x1', lora_scale=1.0):
     ### load customized checkpoint or lora here:
 
     # print("## checkpoint_path", checkpoint_path)
     # print("## lora_path", lora_path)
     # print("## vae_path", vae_path)
 
-    raw_stats = None
+    unet_stats, vae_stats = None, None
     if checkpoint_path and not checkpoint_path.startswith('SD1.5'):
-        if osp.exists(checkpoint_path):
+        if osp.isfile(checkpoint_path):
             print("Loading checkpoint from", checkpoint_path)
             if checkpoint_path.endswith('.safetensors'):
                 raw_stats = load_safetensors(checkpoint_path)
+                unet_stats = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
+                vae_stats = convert_ldm_vae_checkpoint(raw_stats, pipeline.vae.config)
             else:
                 raw_stats = torch.load(checkpoint_path)
+                unet_stats = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
+                vae_stats = convert_ldm_vae_checkpoint(raw_stats, pipeline.vae.config)
+        else:
+            tmp_pipeline = HMImagePipeline.from_pretrained(checkpoint_path)
+            unet_stats = tmp_pipeline.unet.state_dict()
+            vae_stats = tmp_pipeline.vae.state_dict()
 
-            if raw_stats:
-                try:
-                    state_dict = convert_ldm_unet_checkpoint(raw_stats, pipeline.unet_ref.config)
-                    if hasattr(pipeline, 'unet_pre'):
-                        pipeline.unet_pre.load_state_dict(state_dict, strict=False)
-                    pipeline.unet.load_state_dict(state_dict, strict=False)
+        if unet_stats:
+            try:
+                if hasattr(pipeline, 'unet_pre'):
+                    pipeline.unet_pre.load_state_dict(unet_stats, strict=False)
+                pipeline.unet.load_state_dict(unet_stats, strict=False)
 
-                    if stylize == 'x2' and hasattr(pipeline, 'unet_ref'):
-                        pipeline.unet_ref.load_state_dict(state_dict, strict=False)
-                except:
-                    raise ValueError("Failed to load checkpoint from", checkpoint_path)
+                if stylize == 'x2' and hasattr(pipeline, 'unet_ref'):
+                    pipeline.unet_ref.load_state_dict(unet_stats, strict=False)
+            except:
+                raise ValueError("Failed to load checkpoint from", checkpoint_path)
 
     if vae_path and not vae_path.startswith('SD1.5 default vae'):
-        raw_vae_stats = raw_stats
-
         if osp.isfile(vae_path):
             print("Loading vae from", vae_path)
             if vae_path.endswith('.safetensors'):
                 raw_vae_stats = load_safetensors(vae_path)
             else:
                 raw_vae_stats = torch.load(vae_path)
+            vae_stats = convert_ldm_vae_checkpoint(raw_vae_stats, pipeline.vae.config)
 
-        if raw_vae_stats:
+        if vae_stats:
             try:
-                vae_state_dict = convert_ldm_vae_checkpoint(raw_vae_stats, pipeline.vae.config)
                 if hasattr(pipeline, 'vae_decode'):
-                    pipeline.vae_decode.load_state_dict(vae_state_dict, strict=True)
+                    pipeline.vae_decode.load_state_dict(vae_stats, strict=True)
                 if stylize == 'x2':
-                    pipeline.vae.load_state_dict(vae_state_dict, strict=True)
+                    pipeline.vae.load_state_dict(vae_stats, strict=True)
             except:
                 raise ValueError("Failed to load vae from", vae_path)
 
@@ -116,7 +122,21 @@ def append_pipline_weights(pipeline, checkpoint_path=None, lora_path=None, vae_p
         if osp.exists(lora_path):
             print("Loading lora from", lora_path)
             try:
-                pipeline.load_lora_weights(osp.dirname(lora_path), weight_name=osp.basename(lora_path), adapter_name="lora")
+                pipeline.load_lora_weights_sk(pipeline.unet, osp.dirname(lora_path),
+                                              weight_name=osp.basename(lora_path),
+                                              adapter_name="lora", text_encoder=pipeline.text_encoder,
+                                              lora_scale=lora_scale)
+                if hasattr(pipeline, 'unet_pre'):
+                    pipeline.load_lora_weights_sk(pipeline.unet_pre, osp.dirname(lora_path),
+                                              weight_name=osp.basename(lora_path),
+                                              adapter_name="lora", text_encoder=None,
+                                              lora_scale=lora_scale)
+                if stylize == 'x2' and hasattr(pipeline, 'unet_ref'):
+                    pipeline.load_lora_weights_sk(pipeline.unet_ref, osp.dirname(lora_path),
+                                              weight_name=osp.basename(lora_path),
+                                              adapter_name="lora", text_encoder=None,
+                                              lora_scale=lora_scale)
+
             except:
                 raise ValueError("Failed to load lora from", lora_path)
 
@@ -135,6 +155,11 @@ def image_preprocess(np_bgr, size, dtype=torch.float32):
 
 def np_bgr_to_tensor(img_np, dtype):
     img_rgb = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB) / 255. * 2 - 1
+    return torch.tensor(img_rgb).permute(2, 0, 1).to(dtype=dtype)
+
+
+def np_rgb_to_tensor(img_np, dtype):
+    img_rgb = img_np / 255. * 2 - 1
     return torch.tensor(img_rgb).permute(2, 0, 1).to(dtype=dtype)
 
 

@@ -1,0 +1,16 @@
+{
+  "sd15": {
+    "checkpoints": {
+      "SD1.5": "songkey/stable-diffusion-v1-5",
+      "[preset]RealisticVisionV60B1": "songkey/realisticVisionV60B1_v51VAE",
+      "[preset]DisneyPixarCartoonB": "songkey/disney-pixar-cartoon-b"
+    },
+    "loras": {
+      "[preset]BabyFaceV1": ["songkey/loras_sd_1_5", "baby_face_v1.safetensors"],
+      "[preset]MoreDetails": ["songkey/loras_sd_1_5", "more_details.safetensors"],
+      "[preset]PixelPortraitV1": ["songkey/loras_sd_1_5", "pixel-portrait-v1.safetensors"],
+      "[preset]Drawing": ["songkey/loras_sd_1_5", "Drawing.safetensors"]
+    }
+  },
+  "prompt": "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
+}
