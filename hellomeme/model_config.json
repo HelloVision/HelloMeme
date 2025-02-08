@@ -3,7 +3,10 @@
     "checkpoints": {
       "SD1.5": "songkey/stable-diffusion-v1-5",
       "[preset]RealisticVisionV60B1": "songkey/realisticVisionV60B1_v51VAE",
-      "[preset]DisneyPixarCartoonB": "songkey/disney-pixar-cartoon-b"
+      "[preset]DisneyPixarCartoonB": "songkey/disney-pixar-cartoon-b",
+      "[preset]toonyou_beta6": "songkey/toonyou_beta6",
+      "[preset]LZ_2DCartoon_V2": "songkey/LZ_2DCartoon_V2",
+      "[preset]meinamix_v12Final": "songkey/meinamix_v12Final"
     },
     "loras": {
       "[preset]BabyFaceV1": ["songkey/loras_sd_1_5", "baby_face_v1.safetensors"],
