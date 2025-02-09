@@ -31,6 +31,9 @@
 - ☐ [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) for ablation experiments.
 - ☐ SDXL version.
 - ✅ `02/09/2025` **HelloMemeV3** is now available.
+
+     [![YouTube Demo](https://img.youtube.com/vi/DAUA0EYjsZA/0.jpg)](https://www.youtube.com/watch?v=DAUA0EYjsZA)
+
 - ✅ `12/17/2024` Added modelscope [Demo](https://www.modelscope.cn/studios/songkey/HelloMeme).
 - ✅ `12/13/2024` Rewrite the code for the Gradio app.
 - ✅ `12/12/2024` Added HelloMeme V2 (synchronize code from the [`ComfyUI`](https://github.com/HelloVision/ComfyUI_HelloMeme) repo).
