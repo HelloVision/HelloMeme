@@ -23,9 +23,9 @@ modelscope = False
 
 if __name__ == '__main__':
     ref_img_path = r"data/reference_images/toon.png"
-    drive_video_path = r"data/drive_videos/amns.mp4"
+    drive_video_path = r"data/drive_videos/tiktok.mp4"
 
-    lora = lora_names[3]
+    lora = lora_names[2]
     tmp_lora_info = MODEL_CONFIG['sd15']['loras'][lora]
     checkpoint = checkpoint_names[1]
 
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     gpu_id = 0
     generator = Generator(gpu_id=gpu_id, modelscope=False)
     ref_image = Image.open(ref_img_path)
-    generator.load_video_pipeline(checkpoint_path, vae_path, lora_path, stylize='x1', version='v2')
+    generator.load_video_pipeline(checkpoint_path, vae_path, lora_path, stylize='x1', version='v3')
 
     save_path = generator.video_generate(ref_image=ref_image,
                                       drive_video_path=drive_video_path,

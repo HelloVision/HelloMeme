@@ -34,6 +34,7 @@ modelscope = False
 VERSION_DICT = dict(
     HelloMemeV1='v1',
     HelloMemeV2='v2',
+    HelloMemeV3='v3',
 )
 
 with gr.Blocks() as app:
@@ -68,7 +69,7 @@ with gr.Blocks() as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
+                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3'], value="HelloMemeV3", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -125,7 +126,7 @@ with gr.Blocks() as app:
         gr.Examples(
             examples=[
                 ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.0, 1024,
-                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
+                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV3', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0],
                 ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 25, 2.0, 1024,
                  DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
@@ -158,7 +159,7 @@ with gr.Blocks() as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2'], value="HelloMemeV2", label="Version")
+                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3'], value="HelloMemeV3", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -219,9 +220,9 @@ with gr.Blocks() as app:
                        api_name="Video Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/toon.png', 'data/drive_videos/amns.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
-                 list(MODEL_CONFIG['sd15']['loras'].keys())[2], 2.0, True],
+                ['data/reference_images/toon.png', 'data/drive_videos/tiktok.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.5,
+                 True, 'HMControlNet2', 'HelloMemeV3', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
+                 list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0, True],
                 ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
                  "None", 1.0, True],

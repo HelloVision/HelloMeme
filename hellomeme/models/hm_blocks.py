@@ -380,18 +380,18 @@ class SKMotionModule(nn.Module):
         self.proj = zero_module(nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1))
 
     def forward(self, hidden_states, pad_states, temb, num_frames):
-        temb = rearrange(self.time_emb_proj(temb), "(b f) c -> b c f 1 1", f=num_frames)[:, :, :1]
+        temb = rearrange(self.time_emb_proj(temb), "(b f) c -> b c f 1 1", f=num_frames)[:,:,:1]
 
         inputt = rearrange(hidden_states, "(b f) c h w -> b c f h w", f=num_frames)
-        inputt = torch.cat([pad_states[:, :, :1].clone(), inputt, pad_states[:, :, -1:].clone()], dim=2).contiguous()
+        inputt = torch.cat([pad_states[:,:,:1], inputt, pad_states[:,:,-1:]], dim=2).contiguous()
 
         h, w = inputt.shape[-2:]
-        inputt = rearrange(inputt + temb, "b c f h w -> (b h w) f c")
+        inputt = rearrange(inputt+temb, "b c f h w -> (b h w) f c")
 
         res_temp = self.ff(self.temp_attn(self.norm(self.pos_embed_t(inputt))))
 
         res_temp = rearrange(res_temp, "(b h w) f c -> b c f h w", h=h, w=w)
-        res_temp = rearrange(res_temp[:, :, 1:-1], "b c f h w -> (b f) c h w")
+        res_temp = rearrange(res_temp[:,:,1:-1], "b c f h w -> (b f) c h w")
 
         return hidden_states + self.proj(res_temp)
 

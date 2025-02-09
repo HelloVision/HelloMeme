@@ -8,4 +8,4 @@
 @Desc   : 
 """
 
-from .pipelines import HMImagePipeline, HMVideoPipeline
+from .pipelines import HMImagePipeline, HMVideoPipeline, HM3ImagePipeline, HM3VideoPipeline
