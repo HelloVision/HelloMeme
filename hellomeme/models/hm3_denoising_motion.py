@@ -144,10 +144,8 @@ class HM3DenoisingMotion(UNetMotionModel, InsertReferenceAdapter):
             else:
                 sample, res_samples = downsample_block(hidden_states=sample, temb=emb, num_frames=num_frames)
 
-            if not control_hidden_states is None and f'down3_v1_{idx}' in control_hidden_states:
-                sample += rearrange(control_hidden_states[f'down3_v1_{idx}'], "b c f h w -> (b f) c h w")
-            if not control_hidden_states is None and f'down3_v2_{idx}' in control_hidden_states:
-                sample += rearrange(control_hidden_states[f'down3_v2_{idx}'], "b c f h w -> (b f) c h w")
+            if not control_hidden_states is None and f'down3_{idx}' in control_hidden_states:
+                sample += rearrange(control_hidden_states[f'down3_{idx}'], "b c f h w -> (b f) c h w")
             if hasattr(self, 'motion_down') and use_motion:
                 sample = self.motion_down[idx](sample, motion_pad_hidden_states[f'down_{idx}'], emb, num_frames)
 
@@ -200,10 +198,8 @@ class HM3DenoisingMotion(UNetMotionModel, InsertReferenceAdapter):
             if not is_final_block and forward_upsample_size:
                 upsample_size = down_block_res_samples[-1].shape[2:]
 
-            if not control_hidden_states is None and f'up3_v1_{i}' in control_hidden_states:
-                sample += rearrange(control_hidden_states[f'up3_v1_{i}'], "b c f h w -> (b f) c h w")
-            if not control_hidden_states is None and f'up3_v2_{i}' in control_hidden_states:
-                sample += rearrange(control_hidden_states[f'up3_v2_{i}'], "b c f h w -> (b f) c h w")
+            if not control_hidden_states is None and f'up3_{i}' in control_hidden_states:
+                sample += rearrange(control_hidden_states[f'up3_{i}'], "b c f h w -> (b f) c h w")
             if hasattr(self, "reference_modules_up") and not reference_hidden_states is None and f'up_{i}' in reference_hidden_states:
                 sample = self.reference_modules_up[i](sample, reference_hidden_states[f'up_{i}'], num_frames)
             if hasattr(self, 'motion_up') and use_motion:

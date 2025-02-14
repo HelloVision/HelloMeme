@@ -21,7 +21,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusion
 from diffusers import DPMSolverMultistepScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 
-from ..models import HM3Denoising3D, HMV3ControlNet, HMV3ControlNet2, HMPipeline, HM3ReferenceAdapter
+from ..models import HM3Denoising3D, HMV3ControlNet, HMPipeline, HM3ReferenceAdapter
 
 
 class HM3ImagePipeline(HMPipeline):
@@ -42,18 +42,17 @@ class HM3ImagePipeline(HMPipeline):
         self.vae_decode = copy.deepcopy(self.vae)
         self.text_encoder.cpu()
         self.text_encoder_ref = copy.deepcopy(self.text_encoder)
+        self.safety_checker.cpu()
 
     def insert_hm_modules(self, version='v3', dtype=torch.float16, modelscope=False):
 
         if modelscope:
             from modelscope import snapshot_download
             hm_reference_dir = snapshot_download('songkey/hm3_reference')
-            hm_control_dir = snapshot_download('songkey/hm3_control')
-            hm_control2_dir = snapshot_download('songkey/hm3_control2')
+            hm_control_dir = snapshot_download('songkey/hm3_control_mix')
         else:
             hm_reference_dir = 'songkey/hm3_reference'
-            hm_control_dir = 'songkey/hm3_control'
-            hm_control2_dir = 'songkey/hm3_control2'
+            hm_control_dir = 'songkey/hm3_control_mix'
 
         if isinstance(self.unet, HM3Denoising3D):
             hm_adapter = HM3ReferenceAdapter.from_pretrained(hm_reference_dir)
@@ -68,11 +67,6 @@ class HM3ImagePipeline(HMPipeline):
 
         self.mp_control = HMV3ControlNet.from_pretrained(hm_control_dir)
         self.mp_control.to(device='cpu', dtype=dtype).eval()
-
-        if hasattr(self, "mp_control2"):
-            del self.mp_control2
-        self.mp_control2 = HMV3ControlNet2.from_pretrained(hm_control2_dir)
-        self.mp_control2.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()
         self.vae_decode.to(device='cpu', dtype=dtype).eval()
@@ -238,8 +232,8 @@ class HM3ImagePipeline(HMPipeline):
             condition = torch.cat([torch.ones_like(condition) * -1, condition], dim=0)
 
         control_latents = {}
+        self.mp_control.to(device=device)
         if 'drive_coeff' in drive_params:
-            self.mp_control.to(device=device)
             drive_coeff = drive_params['drive_coeff'].clone().to(device=device)
             face_parts = drive_params['face_parts'].clone().to(device=device)
             if self.do_classifier_free_guidance:
@@ -247,26 +241,13 @@ class HM3ImagePipeline(HMPipeline):
                 face_parts = torch.cat([torch.zeros_like(face_parts), face_parts], dim=0)
             control_latents1 = self.mp_control(condition=condition, drive_coeff=drive_coeff, face_parts=face_parts)
             control_latents.update(control_latents1)
-            self.mp_control.cpu()
-
-        # debug_dict = torch.load(r'C:\Users\songkey-win\Downloads\debug\debug_dict.pth')
-        # # latents_cntrl = debug_dict['latents_cntrl']
-        # ref_latents = debug_dict['ref_latents']
-        # ref_latents_neg = debug_dict['ref_latents_neg']
-        # # cached_res = debug_dict['cached_res']
-        # tgt_skl_tensor = debug_dict['tgt_skl_tensor']
-        # emo_embedding = debug_dict['emo_embedding']
-
-        if 'pd_fpg' in drive_params:
-            self.mp_control2.to(device=device)
+        elif 'pd_fpg' in drive_params:
             pd_fpg = drive_params['pd_fpg'].clone().to(device=device)
-            # pd_fpg = emo_embedding[:,:1]
-            # condition = tgt_skl_tensor[:,:,:1]
             if self.do_classifier_free_guidance:
                 pd_fpg = torch.cat([torch.zeros_like(pd_fpg), pd_fpg], dim=0)
-            control_latents2 = self.mp_control2(condition=condition, emo_embedding=pd_fpg)
+            control_latents2 = self.mp_control(condition=condition, emo_embedding=pd_fpg)
             control_latents.update(control_latents2)
-            self.mp_control2.cpu()
+        self.mp_control.cpu()
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)

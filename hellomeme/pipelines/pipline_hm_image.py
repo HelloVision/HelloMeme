@@ -42,6 +42,7 @@ class HMImagePipeline(HMPipeline):
         self.vae_decode = copy.deepcopy(self.vae)
         self.text_encoder.cpu()
         self.text_encoder_ref = copy.deepcopy(self.text_encoder)
+        self.safety_checker.cpu()
 
     def insert_hm_modules(self, version, dtype, modelscope=False):
         if modelscope:

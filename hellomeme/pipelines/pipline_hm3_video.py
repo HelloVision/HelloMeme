@@ -12,7 +12,6 @@ adapted from: https://github.com/huggingface/diffusers/blob/main/src/diffusers/p
 import copy
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import cv2
 import torch
 from einops import rearrange
 
@@ -24,9 +23,8 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img impo
 from diffusers import MotionAdapter, DPMSolverMultistepScheduler
 from diffusers.utils.torch_utils import randn_tensor
 
-from ..models import (HM3Denoising3D, HM3DenoisingMotion, HMV3ControlNet2, HM3MotionAdapter,
+from ..models import (HM3Denoising3D, HM3DenoisingMotion, HM3MotionAdapter,
                       HMV3ControlNet, HM3ReferenceAdapter, HMPipeline)
-from ..utils import np_rgb_to_tensor, tensor_to_np_rgb
 
 class HM3VideoPipeline(HMPipeline):
     def caryomitosis(self, version='v3', modelscope=False, **kwargs):
@@ -57,22 +55,23 @@ class HM3VideoPipeline(HMPipeline):
         self.vae_decode = copy.deepcopy(self.vae)
         self.text_encoder.cpu()
         self.text_encoder_ref = copy.deepcopy(self.text_encoder)
+        self.safety_checker.cpu()
 
     def insert_hm_modules(self, version='v3', dtype=torch.float16, modelscope=False):
         if modelscope:
             from modelscope import snapshot_download
             hm_reference_dir = snapshot_download('songkey/hm3_reference')
-            hm_control_dir = snapshot_download('songkey/hm3_control')
-            hm_control2_dir = snapshot_download('songkey/hm3_control2')
+            hm_control_dir = snapshot_download('songkey/hm3_control_mix')
             hm_motion_dir = snapshot_download('songkey/hm3_motion')
         else:
             hm_reference_dir = 'songkey/hm3_reference'
-            hm_control_dir = 'songkey/hm3_control'
-            hm_control2_dir = 'songkey/hm3_control2'
+            hm_control_dir = 'songkey/hm3_control_mix'
             hm_motion_dir = 'songkey/hm3_motion'
 
         hm_adapter = HM3ReferenceAdapter.from_pretrained(hm_reference_dir)
         motion_adapter = HM3MotionAdapter.from_pretrained(hm_motion_dir)
+        motion_adapter = motion_adapter.to(device='cpu', dtype=dtype).eval()
+        motion_adapter.push_to_hub('songkey/hm3_motion')
 
         if isinstance(self.unet, HM3DenoisingMotion):
             self.unet.insert_reference_adapter(hm_adapter)
@@ -92,12 +91,6 @@ class HM3VideoPipeline(HMPipeline):
 
         self.mp_control = HMV3ControlNet.from_pretrained(hm_control_dir)
         self.mp_control.to(device='cpu', dtype=dtype).eval()
-
-        if hasattr(self, "mp_control2"):
-            del self.mp_control2
-
-        self.mp_control2 = HMV3ControlNet2.from_pretrained(hm_control2_dir)
-        self.mp_control2.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()
         self.vae_decode.to(device='cpu', dtype=dtype).eval()
@@ -284,12 +277,6 @@ class HM3VideoPipeline(HMPipeline):
                                               **extra_step_kwargs, return_dict=False)[0]
         self.unet.cpu()
 
-        # images = self.vae_decode_latents(self.vae_decode, latents / self.vae_decode.config.scaling_factor, device)
-        # for idx, image in enumerate(images):
-        #     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        #     cv2.imwrite(f"C:/Users/songkey-win/Downloads/debug0203/output_d{depth:04d}_{idx:04d}.png", image)
-
-
         if depth == 0:
             return latents[:,:,:num_indexes]
         else:
@@ -470,7 +457,6 @@ class HM3VideoPipeline(HMPipeline):
         control_latents = []
         control_latent1_neg, control_latent2_neg = None, None
         self.mp_control.to(device=device)
-        self.mp_control2.to(device=device)
         with self.progress_bar(total=raw_video_len) as progress_bar:
             for idx in range(raw_video_len):
                 progress_bar.set_description(f"GEN stage1")
@@ -495,22 +481,20 @@ class HM3VideoPipeline(HMPipeline):
                         control_latent1 = cat_dicts([control_latent1_neg, control_latent1], dim=0)
 
                     control_latent_input.update(control_latent1)
-
-                if 'pd_fpg' in drive_params:
+                else:
                     pd_fpg = drive_params['pd_fpg'][:, idx:idx+1].clone().to(device=device)
 
                     if control_latent2_neg is None and self.do_classifier_free_guidance:
-                        control_latent2_neg = self.mp_control2(condition=torch.ones_like(condition)*-1,
+                        control_latent2_neg = self.mp_control(condition=torch.ones_like(condition)*-1,
                                 emo_embedding=torch.zeros_like(pd_fpg))
 
-                    control_latent2 = self.mp_control2(condition=condition, emo_embedding=pd_fpg)
+                    control_latent2 = self.mp_control(condition=condition, emo_embedding=pd_fpg)
                     if self.do_classifier_free_guidance:
                         control_latent2 = cat_dicts([control_latent2_neg, control_latent2], dim=0)
 
                     control_latent_input.update(control_latent2)
                 control_latents.append(dicts_to_device([control_latent_input], device='cpu')[0])
 
-        self.mp_control2.cpu()
         self.mp_control.cpu()
 
         more_params = dict(
