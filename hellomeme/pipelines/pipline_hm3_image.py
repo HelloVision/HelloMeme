@@ -20,9 +20,7 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from diffusers import DPMSolverMultistepScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
-
-from ..models import HM3Denoising3D, HMV3ControlNet, HMPipeline, HM3ReferenceAdapter
-
+from ..models import HM3Denoising3D, HMV3ControlNet, HMPipeline, HM3ReferenceAdapter, HMControlNetBase, HM4SD15ControlProj
 
 class HM3ImagePipeline(HMPipeline):
     def caryomitosis(self, **kwargs):
@@ -45,14 +43,24 @@ class HM3ImagePipeline(HMPipeline):
         self.safety_checker.cpu()
 
     def insert_hm_modules(self, version='v3', dtype=torch.float16, modelscope=False):
-
+        self.version = version
         if modelscope:
             from modelscope import snapshot_download
-            hm_reference_dir = snapshot_download('songkey/hm3_reference')
-            hm_control_dir = snapshot_download('songkey/hm3_control_mix')
+            if version == 'v3':
+                hm_reference_dir = snapshot_download('songkey/hm3_reference')
+                hm_control_dir = snapshot_download('songkey/hm3_control_mix')
+            else:
+                hm_reference_dir = snapshot_download('songkey/hm4_reference')
+                hm_control_dir = snapshot_download('songkey/hm_control_base')
+                hm_control_proj_dir = snapshot_download('songkey/hm4_control_proj')
         else:
-            hm_reference_dir = 'songkey/hm3_reference'
-            hm_control_dir = 'songkey/hm3_control_mix'
+            if version == 'v3':
+                hm_reference_dir = 'songkey/hm3_reference'
+                hm_control_dir = 'songkey/hm3_control_mix'
+            else:
+                hm_reference_dir = 'songkey/hm4_reference'
+                hm_control_dir = 'songkey/hm_control_base'
+                hm_control_proj_dir = 'songkey/hm4_control_proj'
 
         if isinstance(self.unet, HM3Denoising3D):
             hm_adapter = HM3ReferenceAdapter.from_pretrained(hm_reference_dir)
@@ -65,7 +73,17 @@ class HM3ImagePipeline(HMPipeline):
         if hasattr(self, "mp_control"):
             del self.mp_control
 
-        self.mp_control = HMV3ControlNet.from_pretrained(hm_control_dir)
+        if hasattr(self, "mp_control_proj"):
+            del self.mp_control_proj
+
+        if version == 'v3':
+            self.mp_control = HMV3ControlNet.from_pretrained(hm_control_dir)
+        else:
+            self.mp_control = HMControlNetBase.from_pretrained(hm_control_dir)
+            self.mp_control_proj = HM4SD15ControlProj.from_pretrained(hm_control_proj_dir)
+
+            self.mp_control_proj.to(device='cpu', dtype=dtype).eval()
+
         self.mp_control.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()
@@ -233,6 +251,8 @@ class HM3ImagePipeline(HMPipeline):
 
         control_latents = {}
         self.mp_control.to(device=device)
+        if hasattr(self, 'mp_control_proj') and self.version == 'v4':
+            self.mp_control_proj.to(device=device)
         if 'drive_coeff' in drive_params:
             drive_coeff = drive_params['drive_coeff'].clone().to(device=device)
             face_parts = drive_params['face_parts'].clone().to(device=device)
@@ -240,14 +260,20 @@ class HM3ImagePipeline(HMPipeline):
                 drive_coeff = torch.cat([torch.zeros_like(drive_coeff), drive_coeff], dim=0)
                 face_parts = torch.cat([torch.zeros_like(face_parts), face_parts], dim=0)
             control_latents1 = self.mp_control(condition=condition, drive_coeff=drive_coeff, face_parts=face_parts)
+            if self.version == 'v4':
+                control_latents1 = self.mp_control_proj(control_latents1)
             control_latents.update(control_latents1)
         elif 'pd_fpg' in drive_params:
             pd_fpg = drive_params['pd_fpg'].clone().to(device=device)
             if self.do_classifier_free_guidance:
                 pd_fpg = torch.cat([torch.zeros_like(pd_fpg), pd_fpg], dim=0)
             control_latents2 = self.mp_control(condition=condition, emo_embedding=pd_fpg)
+            if self.version == 'v4':
+                control_latents2 = self.mp_control_proj(control_latents2)
             control_latents.update(control_latents2)
         self.mp_control.cpu()
+        if self.version == 'v4':
+            self.mp_control_proj.cpu()
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)

@@ -14,6 +14,7 @@ from generator import Generator, DEFAULT_PROMPT, MODEL_CONFIG
 import sys
 import importlib.metadata
 
+
 installed_packages = [package.name for package in importlib.metadata.distributions()]
 
 REQUIRED = {
@@ -35,9 +36,10 @@ VERSION_DICT = dict(
     HelloMemeV1='v1',
     HelloMemeV2='v2',
     HelloMemeV3='v3',
+    HelloMemeV4='v4',
 )
 
-with gr.Blocks() as app:
+with gr.Blocks(theme=gr.themes.Soft()) as app:
     gr.Markdown('''
         <div style="display: flex; justify-content: center; align-items: center; text-align: center;">
             <div>
@@ -54,7 +56,7 @@ with gr.Blocks() as app:
     ''')
 
     gen = Generator(gpu_id=0, modelscope=modelscope)
-    # gen.pre_download_hf_weights([realistic_checkpoint_dir, disney_pixar_checkpoint_dir])
+
     with gr.Tab("Image Generation"):
         with gr.Row():
             ref_img = gr.Image(type="pil", label="Reference Image")
@@ -69,7 +71,7 @@ with gr.Blocks() as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3'], value="HelloMemeV3", label="Version")
+                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3', 'HelloMemeV4'], value="HelloMemeV3", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -102,9 +104,10 @@ with gr.Blocks() as app:
                 checkpoint_path = MODEL_CONFIG['sd15']['checkpoints'][checkpoint]
                 if lora != 'None':
                     lora_path = hf_hub_download(tmp_lora_info[0], filename=tmp_lora_info[1])
-            gen.load_image_pipeline(checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
+            token = gen.load_pipeline("image", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
                                     stylize=stylize, version=VERSION_DICT[version])
-            res = gen.image_generate(ref_img,
+            res = gen.image_generate(token,
+                                     ref_img,
                                      drive_img,
                                      num_steps,
                                      guidance,
@@ -128,14 +131,11 @@ with gr.Blocks() as app:
                 ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.0, 1024,
                  DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV3', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0],
-                ['data/reference_images/civitai1.jpg', 'data/drive_images/ysll.jpg', 25, 2.0, 1024,
-                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], "None", 1.0],
                 ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 25, 2.0, 1024,
                  DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 1.0],
                 ['data/reference_images/zzj.jpg', 'data/drive_images/hrwh.jpg', 25, 2.0, 1024,
-                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
+                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV4', 'x1',
                  'SD1.5', list(MODEL_CONFIG['sd15']['loras'].keys())[0], 2.0],
             ],
             fn=img_gen_fnc,
@@ -159,7 +159,7 @@ with gr.Blocks() as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3'], value="HelloMemeV3", label="Version")
+                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3', 'HelloMemeV4'], value="HelloMemeV3", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -195,10 +195,11 @@ with gr.Blocks() as app:
                 if lora != 'None':
                     lora_path = hf_hub_download(tmp_lora_info[0], filename=tmp_lora_info[1])
 
-            gen.load_video_pipeline(checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
+            token = gen.load_pipeline("video", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
                                        stylize=stylize, version=VERSION_DICT[version])
 
-            res = gen.video_generate(ref_img,
+            res = gen.video_generate(token,
+                                     ref_img,
                                      drive_video,
                                      num_steps,
                                      guidance,
@@ -220,13 +221,10 @@ with gr.Blocks() as app:
                        api_name="Video Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/toon.png', 'data/drive_videos/tiktok.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.5,
-                 True, 'HMControlNet2', 'HelloMemeV3', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
+                ['data/reference_images/chillout.jpg', 'data/drive_videos/nice.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.2,
+                 True, 'HMControlNet2', 'HelloMemeV4', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
                  list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0, True],
-                ['data/reference_images/zzj.jpg', 'data/drive_videos/tbh.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
-                 "None", 1.0, True],
-                ['data/reference_images/kjl.jpg', 'data/drive_videos/jue.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/zzj.jpg', 'data/drive_videos/jue.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1],
                  "None", 1.0, True],
             ],

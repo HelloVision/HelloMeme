@@ -18,17 +18,20 @@ import numpy as np
 import cv2
 import imageio
 from PIL import Image
+from collections import OrderedDict
+
 from hellomeme.utils import (get_drive_pose,
                              get_drive_expression,
                              get_drive_expression_pd_fgc,
                              det_landmarks,
                              crop_and_resize,
                              gen_control_heatmaps,
+                             generate_random_string,
                              ff_cat_video_and_audio,
                              ff_change_fps,
                              load_face_toolkits,
                              append_pipline_weights)
-from hellomeme.pipelines import HMVideoPipeline, HMImagePipeline
+from hellomeme.pipelines import HMVideoPipeline, HMImagePipeline, HM3VideoPipeline, HM3ImagePipeline
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 
@@ -39,26 +42,22 @@ with open(config_path, 'r') as f:
 DEFAULT_PROMPT = MODEL_CONFIG['prompt']
 
 class Generator(object):
-    def __init__(self, gpu_id=0, dtype=torch.float16, modelscope=False):
+    def __init__(self, gpu_id=0, dtype=torch.float16, pipeline_dict_len=10, modelscope=False):
         self.modelscope = modelscope
         self.gpu_id = gpu_id
         self.dtype = dtype
         self.toolkits = load_face_toolkits(gpu_id=gpu_id, dtype=dtype, modelscope=modelscope)
-        self.image_pipeline = None
-        self.image_params_token = ''
-        self.video_pipeline = None
-        self.video_params_token = ''
+        self.pipeline_dict = OrderedDict()
+        self.pipeline_counter = OrderedDict()
+        self.pipeline_dict_len = pipeline_dict_len
 
     @torch.no_grad()
-    def pre_download_hf_weights(self, checkpoint_dirs):
-        for idx, checkpoint_dir in enumerate(checkpoint_dirs):
-            self.load_video_pipeline_hf(hf_path=checkpoint_dir, stylize='x2', version='v1' if idx % 2 == 0 else 'v2')
-
-    @torch.no_grad()
-    def load_image_pipeline(self, checkpoint_path, vae_path=None, lora_path=None, lora_scale=1.0, stylize='x1', version='v2'):
-        new_token = f"{checkpoint_path}_{lora_path}_{lora_scale}_{stylize}_{version}"
-        if new_token == self.image_params_token:
-            return
+    def load_pipeline(self, type, checkpoint_path, vae_path=None, lora_path=None, lora_scale=1.0, stylize='x1', version='v2'):
+        new_token = f"{type}__{osp.basename(checkpoint_path)}__{'none' if lora_path is None else osp.basename(lora_path)}__{lora_scale}__{stylize}__{version}"
+        if new_token in self.pipeline_dict:
+            self.pipeline_counter[new_token] += 1
+            print(f"@@ Pipeline {new_token}({self.pipeline_counter[new_token]}) already exists, reuse it.")
+            return new_token
 
         if self.modelscope:
             from modelscope import snapshot_download
@@ -66,45 +65,38 @@ class Generator(object):
         else:
             sd1_5_dir = 'songkey/stable-diffusion-v1-5'
 
-
-        tmp_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
-        tmp_pipeline.to(dtype=self.dtype)
-        tmp_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
-        append_pipline_weights(tmp_pipeline, checkpoint_path, lora_path, vae_path,
-                               stylize=stylize, lora_scale=lora_scale)
-        tmp_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
-
-        if self.image_pipeline is not None:
-            del self.image_pipeline
-        self.image_pipeline = tmp_pipeline
-        self.image_params_token = new_token
-
-    @torch.no_grad()
-    def load_video_pipeline(self, checkpoint_path, vae_path=None, lora_path=None, lora_scale=1.0, stylize='x1', version='v2'):
-        new_token = f"{checkpoint_path}_{lora_path}_{lora_scale}_{stylize}_{version}"
-        if new_token == self.video_params_token:
-            return
-
-        if self.modelscope:
-            from modelscope import snapshot_download
-            sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
+        if version == 'v3' or version == 'v4':
+            if type == 'image':
+                tmp_pipeline = HM3ImagePipeline.from_pretrained(sd1_5_dir)
+            else:
+                tmp_pipeline = HM3VideoPipeline.from_pretrained(sd1_5_dir)
         else:
-            sd1_5_dir = 'songkey/stable-diffusion-v1-5'
+            if type == 'image':
+                tmp_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
+            else:
+                tmp_pipeline = HMVideoPipeline.from_pretrained(sd1_5_dir)
 
-        tmp_pipeline = HMVideoPipeline.from_pretrained(sd1_5_dir)
         tmp_pipeline.to(dtype=self.dtype)
         tmp_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
         append_pipline_weights(tmp_pipeline, checkpoint_path, lora_path, vae_path,
                                stylize=stylize, lora_scale=lora_scale)
         tmp_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
 
-        if self.video_pipeline is not None:
-            del self.video_pipeline
-        self.video_pipeline = tmp_pipeline
-        self.video_params_token = new_token
+        if len(self.pipeline_dict) >= self.pipeline_dict_len:
+            min_key = min(self.pipeline_counter, key=self.pipeline_counter.get)
+            print(f"@@ Pipeline {min_key}({self.pipeline_counter[min_key]}) removed.")
+            del self.pipeline_dict[min_key]
+            del self.pipeline_counter[min_key]
+        self.pipeline_dict[new_token] = tmp_pipeline
+        self.pipeline_counter[new_token] = 1
+
+        print(f"@@ Pipeline {new_token} created.")
+        return new_token
+
 
     @torch.no_grad()
     def image_generate(self,
+                       pipeline_token,
                        ref_image,
                        drive_image,
                        steps,
@@ -152,7 +144,7 @@ class Generator(object):
 
         generator = torch.Generator().manual_seed(seed if seed >= 0 else random.randint(0, 2**32-1))
 
-        result_img, latents = self.image_pipeline(
+        result_img, latents = self.pipeline_dict[pipeline_token](
             prompt=[prompt],
             strength=1.0,
             image=input_ref_pil,
@@ -196,6 +188,7 @@ class Generator(object):
 
     @torch.no_grad()
     def video_generate(self,
+                       pipeline_token,
                        ref_image,
                        drive_video_path,
                        num_steps,
@@ -214,8 +207,9 @@ class Generator(object):
         save_size = 512
         input_ref_pil, ref_rot, ref_trans = self.ref_image_preprocess(ref_image, crop_reference, save_size)
 
-        drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + f'_proced.mp4'
-        save_video_path = osp.splitext(drive_video_path)[0] + f'_save.mp4'
+        rand_token = generate_random_string(8)
+        drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + f'_{rand_token}_proced.mp4'
+        save_video_path = osp.splitext(drive_video_path)[0] + f'_{rand_token}_save.mp4'
 
         if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
         if fps15:
@@ -250,7 +244,7 @@ class Generator(object):
         drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 
         generator = torch.Generator().manual_seed(seed if seed >= 0 else random.randint(0, 2**32-1))
-        res_frames, latents = self.video_pipeline(
+        res_frames, latents = self.pipeline_dict[pipeline_token](
             prompt=[prompt],
             strength=1.0,
             image=input_ref_pil,
@@ -268,7 +262,7 @@ class Generator(object):
         if osp.exists(save_video_path): os.remove(save_video_path)
         imageio.mimsave(save_video_path, res_frames_np, fps=fps)
 
-        save_video_audio_path = osp.splitext(drive_video_path)[0] + f'_audio.mp4'
+        save_video_audio_path = osp.splitext(drive_video_path)[0] + f'_{rand_token}_audio.mp4'
         if osp.exists(save_video_audio_path): os.remove(save_video_audio_path)
         ff_cat_video_and_audio(save_video_path, drive_video_path_fps15, save_video_audio_path)
         if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)

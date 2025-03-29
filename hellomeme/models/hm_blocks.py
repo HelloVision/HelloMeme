@@ -270,6 +270,158 @@ class SKReferenceAttentionV3(nn.Module):
 
         return hidden_states + self.proj(res2.contiguous())
 
+
+class SmallUnet(nn.Module):
+    def __init__(self, in_channels: int = 3,
+                 out_channels: int = 16,
+                 cross_attention_dim: int = 1024,
+                 mid_channels: Tuple[int] = (320, 640, 1280),
+                 temporal_attn: bool = False):
+        super(SmallUnet, self).__init__()
+
+        down_channels = [in_channels] + mid_channels
+        up_channels = mid_channels[::-1] + [out_channels]
+        self.down_blocks = nn.ModuleList([
+            BasicBlock(
+                inplanes=down_channels[i-1],
+                planes=down_channels[i],
+                stride=2,
+                downsample=nn.Sequential(
+                    nn.Conv2d(down_channels[i-1], down_channels[i], kernel_size=1, stride=2, bias=False),
+                    nn.InstanceNorm2d(down_channels[i]),
+                    nn.SiLU(),
+                ),
+                norm_layer=nn.InstanceNorm2d,
+            ) for i in range(1, len(down_channels))
+        ])
+        self.up_blocks = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(up_channels[i-1], up_channels[i], kernel_size=3, padding=1),
+                nn.InstanceNorm2d(up_channels[i]),
+                nn.SiLU(),
+                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            ) for i in range(1, len(up_channels))
+        ])
+        self.attn_blocks = nn.ModuleList([
+            STKCrossAttention(
+                channel_in=c,
+                channel_mid=c,
+                cross_attention_dim=cross_attention_dim,
+                num_positional_embeddings=512,
+                num_positional_embeddings_hidden=1024,
+                temporal_attn=temporal_attn,
+            ) for c in mid_channels
+        ])
+
+    def forward(self, x, condition):
+        f = x.size(2)
+        x = rearrange(x, "b c f h w -> (b f) c h w")
+        skips = []
+        ret_dict = {}
+        for down_block, attn_block in zip(self.down_blocks, self.attn_blocks):
+            x = rearrange(down_block(x), "(b f) c h w -> b f c h w", f=f)
+            x = attn_block(x, condition)
+            x = rearrange(x, "b f c h w -> (b f) c h w")
+            skips.append(x)
+        skips = skips[::-1][1:]
+        ret_dict['feat_0'] = rearrange(x, "(b f) c h w -> b c f h w", f=f)
+        for i, block in enumerate(self.up_blocks[:-1]):
+            x = block(x) + skips[i]
+            ret_dict[f'feat_{i+1}'] = rearrange(x, "(b f) c h w -> b c f h w", f=f)
+        x = self.up_blocks[-1](x)
+        ret_dict[f'feat_{i+2}'] = rearrange(x, "(b f) c h w -> b c f h w", f=f)
+        return ret_dict
+
+
+class STKCrossAttention(nn.Module):
+    def __init__(
+            self,
+            channel_in: int,
+            channel_mid: int,
+            heads: int = 8,
+            cross_attention_dim: int = 320,
+            norm_elementwise_affine: bool = True,
+            norm_eps: float = 1e-5,
+            num_positional_embeddings: int = 64,
+            num_positional_embeddings_hidden: int = 64,
+            temporal_attn: bool = False,
+    ):
+        super().__init__()
+
+        self.conv_in = nn.Conv2d(channel_in, channel_mid, kernel_size=3, padding=1)
+        self.pos_embed = SinusoidalPositionalEmbedding(channel_mid, max_seq_length=num_positional_embeddings)
+        self.pos_embed_hidden = SinusoidalPositionalEmbedding(cross_attention_dim, max_seq_length=num_positional_embeddings_hidden)
+
+        self.norm = nn.LayerNorm(channel_mid, elementwise_affine=norm_elementwise_affine, eps=norm_eps)
+        self.attn1 = Attention(
+            query_dim=channel_mid,
+            heads=heads,
+            dim_head=channel_mid // heads,
+            dropout=0.0,
+            bias=False,
+            cross_attention_dim=cross_attention_dim,
+            upcast_attention=False,
+            out_bias=True,
+        )
+
+        self.attn2 = Attention(
+            query_dim=channel_mid,
+            heads=heads,
+            dim_head=channel_mid // heads,
+            dropout=0.0,
+            bias=False,
+            cross_attention_dim=cross_attention_dim,
+            upcast_attention=False,
+            out_bias=True,
+        )
+
+        if temporal_attn:
+            self.attn3 = Attention(
+                query_dim=channel_mid,
+                heads=heads,
+                dim_head=channel_mid // heads,
+                dropout=0.0,
+                bias=False,
+                cross_attention_dim=cross_attention_dim,
+                upcast_attention=False,
+                out_bias=True,
+            )
+
+        self.ff = FeedForward(
+            channel_mid,
+            dropout=0.0,
+            activation_fn="geglu",
+            final_dropout=False,
+            inner_dim=channel_mid*16,
+            bias=True,
+        )
+
+        self.proj = nn.Conv2d(channel_mid, channel_in, kernel_size=3, padding=1)
+
+    def forward(self, input, hidden_stats):
+        b, f, _, h, w = input.shape
+        x = rearrange(input, "b f c h w -> (b f) c h w")
+        x = self.conv_in(x)
+
+        hidden_stats = rearrange(hidden_stats, "b f c d -> (b f) c d")
+        x = rearrange(x, "b c h w -> (b h) w c")
+        x = self.attn1(self.norm(self.pos_embed(x)),
+                       self.pos_embed_hidden(hidden_stats.repeat_interleave(h, dim=0)))
+        x = rearrange(x, "(b h) w c -> (b w) h c", h=h)
+        x = self.attn2(self.norm(self.pos_embed(x)),
+                       self.pos_embed_hidden(hidden_stats.repeat_interleave(w, dim=0)))
+        if hasattr(self, 'attn3'):
+            x = rearrange(x, "(b f w) h c -> (b w h) f c", w=w, f=f)
+            x = self.attn3(self.norm(self.pos_embed(x)),
+                           self.pos_embed_hidden(hidden_stats.repeat_interleave(w*h, dim=0)))
+            x = rearrange(x, "(b w h) f c -> (b f) (h w) c", w=w, h=h)
+        else:
+            x = rearrange(x, "(b f w) h c -> (b f) (h w) c", w=w, f=f)
+        x = self.norm(self.ff(x))
+        x = rearrange(x, "(b f) (h w) c -> (b f) c h w", w=w, f=f)
+        x = self.proj(x)
+        return rearrange(x, "(b f) c h w -> b f c h w", f=f)
+
 class SKCrossAttention(nn.Module):
     def __init__(
             self,
