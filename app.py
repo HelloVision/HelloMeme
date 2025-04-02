@@ -78,15 +78,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             with gr.Row():
                 num_steps = gr.Slider(1, 50, 25, step=1, label="Steps")
                 guidance = gr.Slider(1.0, 10.0, 2.0, step=0.1, label="Guidance", interactive=True)
-            with gr.Column():
-                prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
-                negative_prompt = gr.Textbox(label="Negative Prompt", value="")
             with gr.Row():
                 seed = gr.Number(value=-1, label="Seed (-1 for random)")
                 trans_ratio = gr.Slider(0.0, 1.0, 0.0, step=0.01, label="Trans Ratio", interactive=True)
                 crop_reference = gr.Checkbox(label="Crop Reference", value=True)
 
-        def img_gen_fnc(ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt,
+        def img_gen_fnc(ref_img, drive_img, num_steps, guidance, seed,
                         trans_ratio, crop_reference, cntrl_version, version, stylize, checkpoint, lora, lora_scale):
 
             if lora != 'None':
@@ -112,8 +109,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                      num_steps,
                                      guidance,
                                      seed,
-                                     prompt,
-                                     negative_prompt,
+                                     DEFAULT_PROMPT,
+                                     '',
                                      trans_ratio,
                                      crop_reference,
                                      'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
@@ -121,7 +118,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             return res
 
         exec_btn.click(fn=img_gen_fnc,
-                       inputs=[ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt,
+                       inputs=[ref_img, drive_img, num_steps, guidance, seed,
                                trans_ratio, crop_reference, cntrl_version, version, stylize, checkpoint,
                                lora, lora_scale],
                        outputs=result_img,
@@ -129,17 +126,17 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         gr.Examples(
             examples=[
                 ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.0, 1024,
-                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV3', 'x1',
+                 0.0, True, 'HMControlNet2', 'HelloMemeV3', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0],
                 ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 25, 2.0, 1024,
-                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
+                 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 1.0],
                 ['data/reference_images/zzj.jpg', 'data/drive_images/hrwh.jpg', 25, 2.0, 1024,
-                 DEFAULT_PROMPT, '', 0.0, True, 'HMControlNet2', 'HelloMemeV4', 'x1',
+                 0.0, True, 'HMControlNet2', 'HelloMemeV4', 'x1',
                  'SD1.5', list(MODEL_CONFIG['sd15']['loras'].keys())[0], 2.0],
             ],
             fn=img_gen_fnc,
-            inputs=[ref_img, drive_img, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
+            inputs=[ref_img, drive_img, num_steps, guidance, seed, trans_ratio,
                     crop_reference, cntrl_version, version, stylize, checkpoint, lora, lora_scale],
             outputs=result_img,
             cache_examples=False,
@@ -167,16 +164,13 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 num_steps = gr.Slider(1, 50, 25, step=1, label="Steps", interactive=True)
                 guidance = gr.Slider(1.0, 10.0, 2.0, step=0.1, label="Guidance", interactive=True)
                 patch_overlap = gr.Slider(1, 5, 4, step=1, label="Patch Overlap", interactive=True)
-            with gr.Column():
-                prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT)
-                negative_prompt = gr.Textbox(label="Negative Prompt", value="")
             with gr.Row():
                 seed = gr.Number(value=-1, label="Seed (-1 for random)")
                 trans_ratio = gr.Slider(0.0, 1.0, 0.0, step=0.01, label="Trans Ratio", interactive=True)
                 with gr.Column():
                     crop_reference = gr.Checkbox(label="Crop Reference", value=True)
                     fps15 = gr.Checkbox(label="Use fps15", value=True)
-        def video_gen_fnc(ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt,
+        def video_gen_fnc(ref_img, drive_video, num_steps, guidance, seed,
                         trans_ratio, crop_reference, cntrl_version, version, stylize, patch_overlap,
                         checkpoint, lora, lora_scale, fps15):
             if lora != 'None':
@@ -204,8 +198,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                      num_steps,
                                      guidance,
                                      seed,
-                                     prompt,
-                                     negative_prompt,
+                                     DEFAULT_PROMPT,
+                                     '',
                                      trans_ratio,
                                      crop_reference,
                                      patch_overlap,
@@ -214,22 +208,22 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                     )
             return res
         exec_btn.click(fn=video_gen_fnc,
-                       inputs=[ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
+                       inputs=[ref_img, drive_video, num_steps, guidance, seed, trans_ratio,
                                crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint, lora,
                                lora_scale, fps15],
                        outputs=result_video,
                        api_name="Video Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/chillout.jpg', 'data/drive_videos/nice.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.2,
+                ['data/reference_images/chillout.jpg', 'data/drive_videos/nice.mp4', 25, 2.0, 1024, 0.2,
                  True, 'HMControlNet2', 'HelloMemeV4', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
                  list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0, True],
-                ['data/reference_images/zzj.jpg', 'data/drive_videos/jue.mp4', 25, 2.0, 1024, DEFAULT_PROMPT, '', 0.0,
+                ['data/reference_images/zzj.jpg', 'data/drive_videos/jue.mp4', 25, 2.0, 1024, 0.0,
                  True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1],
                  "None", 1.0, True],
             ],
             fn=video_gen_fnc,
-            inputs=[ref_img, drive_video, num_steps, guidance, seed, prompt, negative_prompt, trans_ratio,
+            inputs=[ref_img, drive_video, num_steps, guidance, seed, trans_ratio,
                     crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint,
                     lora, lora_scale, fps15],
             outputs=result_video,
