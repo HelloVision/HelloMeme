@@ -10,3 +10,5 @@
 .gradio/
 data/results
 pretrained_models/
+__pycache__/
+*~

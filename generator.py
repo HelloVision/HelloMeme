@@ -31,7 +31,8 @@ from hellomeme.utils import (get_drive_pose,
                              ff_change_fps,
                              load_face_toolkits,
                              append_pipline_weights)
-from hellomeme.pipelines import HMVideoPipeline, HMImagePipeline, HM3VideoPipeline, HM3ImagePipeline
+from hellomeme.pipelines import (HMVideoPipeline, HMImagePipeline,
+                                 HM3VideoPipeline, HM3ImagePipeline, HM5ImagePipeline)
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 
@@ -70,6 +71,8 @@ class Generator(object):
                 tmp_pipeline = HM3ImagePipeline.from_pretrained(sd1_5_dir)
             else:
                 tmp_pipeline = HM3VideoPipeline.from_pretrained(sd1_5_dir)
+        elif version == 'v5' and type == 'image':
+            tmp_pipeline = HM5ImagePipeline.from_pretrained(sd1_5_dir)
         else:
             if type == 'image':
                 tmp_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
@@ -93,6 +96,13 @@ class Generator(object):
         print(f"@@ Pipeline {new_token} created.")
         return new_token
 
+    def image_preprocess(self, images, crop=False):
+        _, drive_landmarks = det_landmarks(self.toolkits['face_aligner'], images)
+        drive_frames, drive_landmarks, drive_rot, drive_trans = get_drive_pose(self.toolkits,
+                                                                               images,
+                                                                               drive_landmarks,
+                                                                               crop=crop)
+        return drive_frames, drive_landmarks, drive_rot, drive_trans
 
     @torch.no_grad()
     def image_generate(self,
@@ -113,31 +123,26 @@ class Generator(object):
         dtype = self.toolkits['dtype']
         device = self.toolkits['device']
 
-        input_ref_pil, ref_rot, ref_trans = self.ref_image_preprocess(ref_image, crop_reference, save_size)
+        ref_image_input_np = cv2.cvtColor(np.array(ref_image.convert('RGB')), cv2.COLOR_RGB2BGR)
+        ref_frames, ref_landmarks, ref_rot, ref_trans = self.image_preprocess([ref_image_input_np], crop=crop_reference)
+        assert len(ref_frames) == 1
 
-        drive_image_np = cv2.cvtColor(np.array(drive_image.convert('RGB')), cv2.COLOR_RGB2BGR)
-        resize_scale = save_size / max(drive_image_np.shape[:2])
-        drive_image_np = cv2.resize(drive_image_np, (0, 0), fx=resize_scale, fy=resize_scale)
+        input_ref_pil = Image.fromarray(cv2.cvtColor(ref_frames[0], cv2.COLOR_BGR2RGB))
 
-        self.toolkits['face_aligner'].reset_track()
-        faces = self.toolkits['face_aligner'].forward(drive_image_np)
-        if len(faces) > 0:
-            face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                    x['face_rect'][3] - x['face_rect'][1]))[-1]
-            drive_landmark = face['pre_kpt_222']
-        else:
-            return None
-
-
-        drive_rot, drive_trans = get_drive_pose(self.toolkits, [drive_image_np], [drive_landmark])
+        drive_image_input_np = cv2.cvtColor(np.array(drive_image.convert('RGB')), cv2.COLOR_RGB2BGR)
+        drive_frames, drive_landmarks, drive_rot, drive_trans = self.image_preprocess([drive_image_input_np], crop=True)
+        assert len(drive_frames) == 1
 
         if cntrl_version == 'cntrl1':
-            drive_params = get_drive_expression(self.toolkits, [drive_image_np], [drive_landmark])
+            drive_params = get_drive_expression(self.toolkits, drive_frames, drive_landmarks)
         else:
             # for HMControlNet2
-            drive_params = get_drive_expression_pd_fgc(self.toolkits, [drive_image_np], [drive_landmark])
+            drive_params = get_drive_expression_pd_fgc(self.toolkits, drive_frames, drive_landmarks)
 
-        control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=save_size,
+        control_heatmaps = gen_control_heatmaps(drive_rot,
+                                                drive_trans,
+                                                ref_trans[0],
+                                                save_size=save_size,
                                                 trans_ratio=trans_ratio)
 
         drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
@@ -160,32 +165,6 @@ class Generator(object):
         res_image_np = np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8)
         return Image.fromarray(res_image_np)
 
-    def ref_image_preprocess(self, ref_image_pil, crop_reference, save_size):
-        ref_image = ref_image_pil.convert('RGB')
-        ref_image_np = cv2.cvtColor(np.array(ref_image), cv2.COLOR_RGB2BGR)
-        self.toolkits['face_aligner'].reset_track()
-        faces = self.toolkits['face_aligner'].forward(ref_image_np)
-        if len(faces) > 0:
-            face = sorted(faces, key=lambda x: (x['face_rect'][2] - x['face_rect'][0]) * (
-                    x['face_rect'][3] - x['face_rect'][1]))[-1]
-            ref_landmark = face['pre_kpt_222']
-        else:
-            return None
-        self.toolkits['face_aligner'].reset_track()
-
-        if crop_reference:
-            ref_images, ref_landmarks = crop_and_resize(ref_image_np[np.newaxis, :, :, :],
-                                                        ref_landmark[np.newaxis, :, :],
-                                                        save_size, crop=True)
-            ref_image_np, ref_landmark = ref_images[0], ref_landmarks[0]
-        else:
-            ref_landmark = (ref_landmark * [save_size / ref_image_np.shape[1], save_size / ref_image_np.shape[0]])
-            ref_image_np = cv2.resize(ref_image_np, (save_size, save_size))
-        ref_landmark = ref_landmark.astype(np.float32)
-
-        ref_rot, ref_trans = self.toolkits['h3dmm'].forward_params(ref_image_np, ref_landmark)
-        return Image.fromarray(cv2.cvtColor(ref_image_np, cv2.COLOR_BGR2RGB)), ref_rot, ref_trans
-
     @torch.no_grad()
     def video_generate(self,
                        pipeline_token,
@@ -205,7 +184,6 @@ class Generator(object):
         dtype = self.toolkits['dtype']
         device = self.toolkits['device']
         save_size = 512
-        input_ref_pil, ref_rot, ref_trans = self.ref_image_preprocess(ref_image, crop_reference, save_size)
 
         rand_token = generate_random_string(8)
         drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + f'_{rand_token}_proced.mp4'
@@ -229,17 +207,21 @@ class Generator(object):
             ret, frame = cap.read()
         cap.release()
 
-        landmark_list = det_landmarks(self.toolkits['face_aligner'], frame_list)[1]
+        ref_image_input_np = cv2.cvtColor(np.array(ref_image.convert('RGB')), cv2.COLOR_RGB2BGR)
+        ref_frames, ref_landmarks, ref_rot, ref_trans = self.image_preprocess([ref_image_input_np], crop=crop_reference)
+        assert len(ref_frames) == 1
 
-        drive_rot, drive_trans = get_drive_pose(self.toolkits, frame_list, landmark_list)
+        input_ref_pil = Image.fromarray(cv2.cvtColor(ref_frames[0], cv2.COLOR_BGR2RGB))
+
+        drive_frames, drive_landmarks, drive_rot, drive_trans = self.image_preprocess(frame_list, crop=True)
 
         if cntrl_version == 'cntrl1':
-            drive_params = get_drive_expression(self.toolkits, frame_list, landmark_list)
+            drive_params = get_drive_expression(self.toolkits, drive_frames, drive_landmarks)
         else:
             # for HMControlNet2
-            drive_params = get_drive_expression_pd_fgc(self.toolkits, frame_list, landmark_list)
+            drive_params = get_drive_expression_pd_fgc(self.toolkits, drive_frames, drive_landmarks)
 
-        control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans, save_size=save_size,
+        control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans[0], save_size=save_size,
                                                 trans_ratio=trans_ratio)
         drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 

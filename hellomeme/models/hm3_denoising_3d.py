@@ -17,7 +17,7 @@ from einops import rearrange
 
 from diffusers.utils import USE_PEFT_BACKEND, deprecate, logging, scale_lora_layers, unscale_lora_layers
 from diffusers.models.unets.unet_2d_condition import UNet2DConditionModel, UNet2DConditionOutput
-from .hm_blocks import CopyWeights, InsertReferenceAdapter
+from .hm_adapters import CopyWeights, InsertReferenceAdapter
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 

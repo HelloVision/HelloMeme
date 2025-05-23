@@ -17,7 +17,7 @@ from einops import rearrange
 
 from diffusers.utils import logging
 from diffusers.models.unets.unet_motion_model import UNetMotionModel, UNetMotionOutput
-from .hm_blocks import InsertReferenceAdapter
+from .hm_adapters import InsertReferenceAdapter
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 

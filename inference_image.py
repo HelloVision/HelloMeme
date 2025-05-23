@@ -50,7 +50,7 @@ if __name__ == '__main__':
     generator = Generator(gpu_id=gpu_id, modelscope=modelscope)
     ref_image = Image.open(ref_img_path)
     drive_image = Image.open(drive_img_path)
-    token = generator.load_pipeline('image', checkpoint_path, vae_path, lora_path, stylize='x1', version='v4')
+    token = generator.load_pipeline('image', checkpoint_path, vae_path, lora_path, stylize='x1', version='v5')
     result = generator.image_generate(token,
                                       ref_image,
                                       drive_image,

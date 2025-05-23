@@ -213,13 +213,11 @@ face_region = [33, 74, 96, 133, 149]
 face_temp = np.array([[0.50951539, 0.40128625], [0.29259476, 0.40203411], [0.72196212, 0.40857479], [0.63420714, 0.71678643], [0.38437035, 0.71723224]])
 
 
-def get_drive_pose(toolkits, frames, landmarks, save_size=512, align=True):
+def get_drive_pose(toolkits, frames, landmarks, save_size=512, crop=True):
     if isinstance(landmarks, list): landmarks = np.stack(landmarks, axis=0)
-    if align:
-        new_frames, new_landmarks = crop_and_resize(np.stack(frames, axis=0), landmarks,
-                                                    save_size=save_size, crop=False)
-    else:
-        new_frames, new_landmarks = frames, landmarks
+
+    new_frames, new_landmarks = crop_and_resize(np.stack(frames, axis=0), landmarks,
+                                                save_size=save_size, crop=crop)
 
     rot_list = []
     trans_list = []
@@ -231,7 +229,7 @@ def get_drive_pose(toolkits, frames, landmarks, save_size=512, align=True):
 
             pbar.set_description('HEAD POSE')
             pbar.update()
-    return rot_list, trans_list
+    return new_frames, new_landmarks, rot_list, trans_list
 
 
 def get_drive_expression(toolkits, images, landmarks):

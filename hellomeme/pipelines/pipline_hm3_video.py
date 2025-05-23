@@ -90,7 +90,7 @@ class HM3VideoPipeline(HMPipeline):
                 hm_motion_dir = 'songkey/hm4_motion'
 
         hm_adapter = HM3ReferenceAdapter.from_pretrained(hm_reference_dir)
-        motion_adapter = HM3MotionAdapter().from_pretrained(hm_motion_dir)
+        motion_adapter = HM3MotionAdapter.from_pretrained(hm_motion_dir)
 
         if isinstance(self.unet, HM3DenoisingMotion):
             self.unet.insert_reference_adapter(hm_adapter)

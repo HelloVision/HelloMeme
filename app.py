@@ -37,6 +37,7 @@ VERSION_DICT = dict(
     HelloMemeV2='v2',
     HelloMemeV3='v3',
     HelloMemeV4='v4',
+    HelloMemeV5='v5',
 )
 
 with gr.Blocks(theme=gr.themes.Soft()) as app:
@@ -71,7 +72,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3', 'HelloMemeV4'], value="HelloMemeV3", label="Version")
+                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3', 'HelloMemeV4', 'HelloMemeV5'], value="HelloMemeV5", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -125,15 +126,15 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                        api_name="Image Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.0, 1024,
-                 0.0, True, 'HMControlNet2', 'HelloMemeV3', 'x1',
+                ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.5, 1024,
+                 0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0],
-                ['data/reference_images/kjl.jpg', 'data/drive_images/jue.jpg', 25, 2.0, 1024,
-                 0.0, True, 'HMControlNet2', 'HelloMemeV2', 'x1',
+                ['data/reference_images/firefly.jpg', 'data/drive_images/ysll.jpg', 25, 2.5, 1024,
+                 0.0, False, 'HMControlNet1', 'HelloMemeV5', 'x1',
                  list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 1.0],
-                ['data/reference_images/zzj.jpg', 'data/drive_images/hrwh.jpg', 25, 2.0, 1024,
-                 0.0, True, 'HMControlNet2', 'HelloMemeV4', 'x1',
-                 'SD1.5', list(MODEL_CONFIG['sd15']['loras'].keys())[0], 2.0],
+                ['data/reference_images/majicmix8.jpg', 'data/drive_images/hrwh.jpg', 25, 2.5, 1024,
+                 0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], list(MODEL_CONFIG['sd15']['loras'].keys())[0], 2.0],
             ],
             fn=img_gen_fnc,
             inputs=[ref_img, drive_img, num_steps, guidance, seed, trans_ratio,
