@@ -6,7 +6,14 @@
       "[preset]DisneyPixarCartoonB": "songkey/disney-pixar-cartoon-b",
       "[preset]toonyou_beta6": "songkey/toonyou_beta6",
       "[preset]LZ_2DCartoon_V2": "songkey/LZ_2DCartoon_V2",
-      "[preset]meinamix_v12Final": "songkey/meinamix_v12Final"
+      "[preset]meinamix_v12Final": "songkey/meinamix_v12Final",
+      "[preset]animedark_v10": "songkey/animedark_v10",
+      "[preset]absolutereality_v181": "songkey/absolutereality_v181",
+      "[preset]dreamshaper_8": "songkey/dreamshaper_8",
+      "[preset]epicphotogasm_ultimateFidelity": "songkey/epicphotogasm_ultimateFidelity",
+      "[preset]epicrealism_naturalSinRC1VAE": "songkey/epicrealism_naturalSinRC1VAE",
+      "[preset]xxmix9realistic_v40": "songkey/xxmix9realistic_v40",
+      "[preset]cyberrealistic_v80": "songkey/cyberrealistic_v80"
     },
     "loras": {
       "[preset]BabyFaceV1": ["songkey/loras_sd_1_5", "baby_face_v1.safetensors"],
