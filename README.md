@@ -64,7 +64,7 @@ pip install diffusers transformers einops scipy opencv-python tqdm pillow onnxru
 
 > [!IMPORTANT]  
 > 
-> Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.31.0**.
+> Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.33.1**.
 
 ### 4. Clone the repository
 

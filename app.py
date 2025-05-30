@@ -18,7 +18,7 @@ import importlib.metadata
 installed_packages = [package.name for package in importlib.metadata.distributions()]
 
 REQUIRED = {
-    'diffusers':'0.31.0', 'transformers':'4.46.3', 'einops':'0.8.0', 'opencv-python':'4.10.0.84', 'tqdm':'4.67.0',
+    'diffusers':'0.33.1', 'transformers':'4.46.3', 'einops':'0.8.0', 'opencv-python':'4.10.0.84', 'tqdm':'4.67.0',
     'pillow':'10.2.0', 'onnxruntime-gpu':'1.18.1', 'onnx':'1.17.0', 'safetensors':'0.4.5',
     'accelerate':'1.1.1', 'peft':'0.13.2'
 }
@@ -128,13 +128,22 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             examples=[
                 ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.5, 1024,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0],
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.5],
                 ['data/reference_images/firefly.jpg', 'data/drive_images/ysll.jpg', 25, 2.5, 1024,
-                 0.0, False, 'HMControlNet1', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 1.0],
+                 0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 2.5],
                 ['data/reference_images/majicmix8.jpg', 'data/drive_images/hrwh.jpg', 25, 2.5, 1024,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], list(MODEL_CONFIG['sd15']['loras'].keys())[0], 2.0],
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 2.5],
+                ['data/reference_images/show1.jpg', 'data/drive_images/jue.jpg', 25, 2.5, 1080,
+                 0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[12], "None", 2.5],
+                ['data/reference_images/show4.jpg', 'data/drive_images/hhh.jpg', 25, 2.5, 768,
+                 0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[8], "None", 2.5],
+                ['data/reference_images/show6.jpg', 'data/drive_images/hrwh.jpg', 25, 2.5, 4096,
+                 0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[9], "None", 2.5],
             ],
             fn=img_gen_fnc,
             inputs=[ref_img, drive_img, num_steps, guidance, seed, trans_ratio,

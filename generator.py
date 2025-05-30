@@ -24,7 +24,6 @@ from hellomeme.utils import (get_drive_pose,
                              get_drive_expression,
                              get_drive_expression_pd_fgc,
                              det_landmarks,
-                             crop_and_resize,
                              gen_control_heatmaps,
                              generate_random_string,
                              ff_cat_video_and_audio,
@@ -33,6 +32,8 @@ from hellomeme.utils import (get_drive_pose,
                              append_pipline_weights)
 from hellomeme.pipelines import (HMVideoPipeline, HMImagePipeline,
                                  HM3VideoPipeline, HM3ImagePipeline, HM5ImagePipeline)
+
+from hellomeme.tools.sr import RealESRGANer
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 
@@ -43,7 +44,7 @@ with open(config_path, 'r') as f:
 DEFAULT_PROMPT = MODEL_CONFIG['prompt']
 
 class Generator(object):
-    def __init__(self, gpu_id=0, dtype=torch.float16, pipeline_dict_len=10, modelscope=False):
+    def __init__(self, gpu_id=0, dtype=torch.float16, pipeline_dict_len=10, sr=True, modelscope=False):
         self.modelscope = modelscope
         self.gpu_id = gpu_id
         self.dtype = dtype
@@ -51,6 +52,8 @@ class Generator(object):
         self.pipeline_dict = OrderedDict()
         self.pipeline_counter = OrderedDict()
         self.pipeline_dict_len = pipeline_dict_len
+        if sr:
+            self.upsampler = RealESRGANer(scale=2, half=True, gpu_id=gpu_id, modelscope=modelscope)
 
     @torch.no_grad()
     def load_pipeline(self, type, checkpoint_path, vae_path=None, lora_path=None, lora_scale=1.0, stylize='x1', version='v2'):
@@ -163,6 +166,11 @@ class Generator(object):
         )
 
         res_image_np = np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8)
+        if hasattr(self, 'upsampler'):
+            res_image_np = cv2.cvtColor(res_image_np, cv2.COLOR_RGB2BGR)
+            res_image_np, _ = self.upsampler.enhance(res_image_np, outscale=2)
+            res_image_np = cv2.cvtColor(res_image_np, cv2.COLOR_RGB2BGR)
+
         return Image.fromarray(res_image_np)
 
     @torch.no_grad()
@@ -240,6 +248,11 @@ class Generator(object):
             device=device
         )
         res_frames_np = [np.clip(x[0] * 255, 0, 255).astype(np.uint8) for x in res_frames]
+
+        if hasattr(self, 'upsampler'):
+            res_frames_np = [cv2.cvtColor(x, cv2.COLOR_RGB2BGR) for x in res_frames_np]
+            res_frames_np = [self.upsampler.enhance(x, outscale=2)[0] for x in res_frames_np]
+            res_frames_np = [cv2.cvtColor(x, cv2.COLOR_RGB2BGR) for x in res_frames_np]
 
         if osp.exists(save_video_path): os.remove(save_video_path)
         imageio.mimsave(save_video_path, res_frames_np, fps=fps)
