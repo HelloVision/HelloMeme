@@ -193,7 +193,9 @@ class HM3Denoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
             if not control_hidden_states is None and f'down3_{idx}' in control_hidden_states:
                 sample += rearrange(control_hidden_states[f'down3_{idx}'], "b c f h w -> (b f) c h w")
             if hasattr(self, 'motion_down') and use_motion:
-                sample = self.motion_down[idx](sample, motion_pad_hidden_states[f'down_{idx}'], emb, num_frames)
+                sample = self.motion_down[idx](sample,
+                              None if motion_pad_hidden_states is None else motion_pad_hidden_states[f'down_{idx}'],
+                              emb, num_frames)
 
             down_block_res_samples += res_samples
 
@@ -251,7 +253,9 @@ class HM3Denoising3D(UNet2DConditionModel, CopyWeights, InsertReferenceAdapter):
             if hasattr(self, "reference_modules_up") and not reference_hidden_states is None and f'up_{i}' in reference_hidden_states:
                 sample = self.reference_modules_up[i](sample, reference_hidden_states[f'up_{i}'], num_frames)
             if hasattr(self, 'motion_up') and use_motion:
-                sample = self.motion_up[i](sample, motion_pad_hidden_states[f'up_{i}'], emb, num_frames)
+                sample = self.motion_up[i](sample,
+                              None if motion_pad_hidden_states is None else motion_pad_hidden_states[f'up_{i}'],
+                              emb, num_frames)
 
             if hasattr(upsample_block, "has_cross_attention") and upsample_block.has_cross_attention:
                 sample = upsample_block(

@@ -219,6 +219,7 @@ class HM5ImagePipeline(HMPipeline):
             beta_start=0.00085,
             beta_end=0.012,
             beta_schedule="scaled_linear",
+            # use_karras_sigmas=True,
             algorithm_type="sde-dpmsolver++",
         )
 

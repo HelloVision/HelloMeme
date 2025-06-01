@@ -10,4 +10,4 @@
 
 from .pipelines import (HMImagePipeline, HMVideoPipeline,
                         HM3ImagePipeline, HM3VideoPipeline,
-                        HM5ImagePipeline)
+                        HM5ImagePipeline, HM5VideoPipeline)

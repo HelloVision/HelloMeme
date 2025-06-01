@@ -49,7 +49,7 @@ if __name__ == '__main__':
     gpu_id = 0
     generator = Generator(gpu_id=gpu_id, modelscope=False)
     ref_image = Image.open(ref_img_path)
-    token = generator.load_pipeline('video', checkpoint_path, vae_path, lora_path, stylize='x1', version='v4')
+    token = generator.load_pipeline('video', checkpoint_path, vae_path, lora_path, stylize='x1', version='v5')
 
     save_path = generator.video_generate(token,
                                         ref_image=ref_image,

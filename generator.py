@@ -31,7 +31,8 @@ from hellomeme.utils import (get_drive_pose,
                              load_face_toolkits,
                              append_pipline_weights)
 from hellomeme.pipelines import (HMVideoPipeline, HMImagePipeline,
-                                 HM3VideoPipeline, HM3ImagePipeline, HM5ImagePipeline)
+                                 HM3VideoPipeline, HM3ImagePipeline,
+                                 HM5VideoPipeline, HM5ImagePipeline)
 
 from hellomeme.tools.sr import RealESRGANer
 
@@ -74,8 +75,11 @@ class Generator(object):
                 tmp_pipeline = HM3ImagePipeline.from_pretrained(sd1_5_dir)
             else:
                 tmp_pipeline = HM3VideoPipeline.from_pretrained(sd1_5_dir)
-        elif version == 'v5' and type == 'image':
-            tmp_pipeline = HM5ImagePipeline.from_pretrained(sd1_5_dir)
+        elif version == 'v5':
+            if type == 'image':
+                tmp_pipeline = HM5ImagePipeline.from_pretrained(sd1_5_dir)
+            else:
+                tmp_pipeline = HM5VideoPipeline.from_pretrained(sd1_5_dir)
         else:
             if type == 'image':
                 tmp_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)

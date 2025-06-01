@@ -14,9 +14,12 @@ import torch.utils.checkpoint
 from typing import Tuple
 
 from einops import rearrange
-from diffusers.models.attention import Attention, FeedForward, BasicTransformerBlock
+from diffusers.models.attention import Attention, FeedForward
+from diffusers.models.unets.unet_motion_model import AnimateDiffTransformer3D
 from torchvision.models.resnet import BasicBlock
-from diffusers.models.embeddings import SinusoidalPositionalEmbedding, get_1d_sincos_pos_embed_from_grid, TimestepEmbedding
+from diffusers.models.embeddings import (SinusoidalPositionalEmbedding,
+                                         get_1d_sincos_pos_embed_from_grid,
+                                         TimestepEmbedding)
 
 from diffusers.utils import logging
 
@@ -724,6 +727,51 @@ class SKMotionModule(nn.Module):
 
         return hidden_states + self.proj(res_temp)
 
+
+class SKMotionModuleV5(nn.Module):
+    def __init__(
+            self,
+            in_channels: int,
+            num_attention_heads: int = 8,
+    ):
+        super().__init__()
+
+        self.attn1 = AnimateDiffTransformer3D(
+            in_channels=in_channels,
+            num_attention_heads=num_attention_heads,
+            attention_head_dim=in_channels // num_attention_heads,
+            dropout=0.0,
+            double_self_attention=True,
+            positional_embeddings='sinusoidal',
+            num_positional_embeddings=32,
+
+        )
+
+        self.attn_pad = AnimateDiffTransformer3D(
+            in_channels=in_channels,
+            num_attention_heads=num_attention_heads,
+            attention_head_dim=in_channels // num_attention_heads,
+            dropout=0.0,
+            double_self_attention=True,
+            positional_embeddings='sinusoidal',
+            num_positional_embeddings=32,
+        )
+
+
+    def forward(self, hidden_states, pad_states, temb, num_frames):
+        c, h, w = hidden_states.shape[-3:]
+        res_temp = hidden_states
+
+        if not pad_states is None:
+            res_temp = rearrange(res_temp, "(b f) c h w -> b c f h w", f=num_frames)
+            res_temp = torch.cat([pad_states[:,:,:1], res_temp, pad_states[:,:,-1:]], dim=2).contiguous()
+            res_temp = rearrange(res_temp, "b c f h w -> (b f) c h w")
+            res_temp = self.attn_pad(res_temp, num_frames=num_frames+2)
+            res_temp = rearrange(res_temp, "(b f) c h w -> b c f h w", f=num_frames+2).contiguous()
+            res_temp = rearrange(res_temp[:,:,1:-1], "b c f h w -> (b f) c h w", h=h, w=w) + hidden_states
+
+        res_temp = self.attn1(res_temp, num_frames=num_frames)
+        return res_temp
 
 # https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/controlnet.py
 def zero_module(module):

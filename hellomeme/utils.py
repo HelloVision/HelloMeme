@@ -396,7 +396,7 @@ def crop_and_resize(frames, landmarks, save_size=512, crop=True):
         all_tl, all_br = np.min(landmarks, axis=1), np.max(landmarks, axis=1)
         mean_wh = np.mean(all_br - all_tl, axis=0)
         tl, br = np.min(all_tl, axis=0), np.max(all_br, axis=0)
-        new_size = min(max(mean_wh) * 2.3, min(H, W) - 1)
+        new_size = min(max(mean_wh) * 3.0, min(H, W) - 1)
         fcenter = (tl + br) * 0.5
         fcenter[1] -= new_size * 0.115
         ftl = fcenter - new_size * 0.5

@@ -13,3 +13,4 @@ from .pipline_hm_video import HMVideoPipeline
 from .pipline_hm3_image import HM3ImagePipeline
 from .pipline_hm3_video import HM3VideoPipeline
 from .pipline_hm5_image import HM5ImagePipeline
+from .pipline_hm5_video import HM5VideoPipeline
