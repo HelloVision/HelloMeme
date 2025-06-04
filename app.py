@@ -103,7 +103,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 if lora != 'None':
                     lora_path = hf_hub_download(tmp_lora_info[0], filename=tmp_lora_info[1])
 
-            token = None
+            res = None
             try:
                 token = gen.load_pipeline("image", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
                                         stylize=stylize, version=VERSION_DICT[version])
