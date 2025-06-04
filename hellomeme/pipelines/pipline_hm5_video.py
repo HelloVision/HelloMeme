@@ -143,8 +143,8 @@ class HM5VideoPipeline(HMPipeline):
                                 range(0, num_paded_indexes, stride)]
 
             if len(drive_idx_chunks[-1]) == 1:
-                drive_idx_chunks[-1] = drive_idx_chunks[:-1]
-                drive_idx_chunks_noise[-1] = drive_idx_chunks_noise[:-1]
+                drive_idx_chunks = drive_idx_chunks[:-1]
+                drive_idx_chunks_noise = drive_idx_chunks_noise[:-1]
 
             margin_indexes = set()
             for chunk in drive_idx_chunks:
@@ -162,7 +162,6 @@ class HM5VideoPipeline(HMPipeline):
             beta_schedule="scaled_linear",
             algorithm_type="sde-dpmsolver++",
         )
-
 
         timesteps, _ = retrieve_timesteps(scheduler, step, device, timesteps, sigmas)
 

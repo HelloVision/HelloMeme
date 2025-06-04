@@ -55,7 +55,7 @@ if __name__ == '__main__':
                                       ref_image,
                                       drive_image,
                                       25,
-                                      2.0,
+                                      1.5,
                                       1,
                                       DEFAULT_PROMPT,
                                       '',

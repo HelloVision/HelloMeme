@@ -55,7 +55,7 @@ if __name__ == '__main__':
                                         ref_image=ref_image,
                                         drive_video_path=drive_video_path,
                                         num_steps=25,
-                                        guidance=2.2,
+                                        guidance=1.5,
                                         seed=-1,
                                         prompt=DEFAULT_PROMPT,
                                         negative_prompt='',

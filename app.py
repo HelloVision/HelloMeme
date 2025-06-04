@@ -78,7 +78,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         with gr.Accordion("Advanced Options", open=False):
             with gr.Row():
                 num_steps = gr.Slider(1, 50, 25, step=1, label="Steps")
-                guidance = gr.Slider(1.0, 10.0, 2.0, step=0.1, label="Guidance", interactive=True)
+                guidance = gr.Slider(1.0, 10.0, 1.5, step=0.1, label="Guidance", interactive=True)
             with gr.Row():
                 seed = gr.Number(value=-1, label="Seed (-1 for random)")
                 trans_ratio = gr.Slider(0.0, 1.0, 0.0, step=0.01, label="Trans Ratio", interactive=True)
@@ -126,24 +126,24 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                        api_name="Image Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 2.5, 1024,
+                ['data/reference_images/chillout.jpg', 'data/drive_images/yao.jpg', 25, 1.5, 1024,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.5],
-                ['data/reference_images/firefly.jpg', 'data/drive_images/ysll.jpg', 25, 2.5, 1024,
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2], list(MODEL_CONFIG['sd15']['loras'].keys())[1], 1.5],
+                ['data/reference_images/firefly.jpg', 'data/drive_images/ysll.jpg', 25, 1.5, 1024,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 2.5],
-                ['data/reference_images/majicmix8.jpg', 'data/drive_images/hrwh.jpg', 25, 2.5, 1024,
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 1.5],
+                ['data/reference_images/majicmix8.jpg', 'data/drive_images/hrwh.jpg', 25, 1.5, 1024,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 2.5],
-                ['data/reference_images/show1.jpg', 'data/drive_images/jue.jpg', 25, 2.5, 1080,
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1], "None", 1.5],
+                ['data/reference_images/show1.jpg', 'data/drive_images/jue.jpg', 25, 1.5, 1080,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[12], "None", 2.5],
-                ['data/reference_images/show4.jpg', 'data/drive_images/hhh.jpg', 25, 2.5, 768,
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[12], "None", 1.5],
+                ['data/reference_images/show4.jpg', 'data/drive_images/hhh.jpg', 25, 1.5, 768,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[8], "None", 2.5],
-                ['data/reference_images/show6.jpg', 'data/drive_images/hrwh.jpg', 25, 2.5, 4096,
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[8], "None", 1.5],
+                ['data/reference_images/show6.jpg', 'data/drive_images/hrwh.jpg', 25, 1.5, 4096,
                  0.0, False, 'HMControlNet2', 'HelloMemeV5', 'x1',
-                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[9], "None", 2.5],
+                 list(MODEL_CONFIG['sd15']['checkpoints'].keys())[9], "None", 1.5],
             ],
             fn=img_gen_fnc,
             inputs=[ref_img, drive_img, num_steps, guidance, seed, trans_ratio,
@@ -172,7 +172,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         with gr.Accordion("Advanced Options", open=False):
             with gr.Row():
                 num_steps = gr.Slider(1, 50, 25, step=1, label="Steps", interactive=True)
-                guidance = gr.Slider(1.0, 10.0, 2.0, step=0.1, label="Guidance", interactive=True)
+                guidance = gr.Slider(1.0, 10.0, 1.5, step=0.1, label="Guidance", interactive=True)
                 patch_overlap = gr.Slider(1, 5, 4, step=1, label="Patch Overlap", interactive=True)
             with gr.Row():
                 seed = gr.Number(value=-1, label="Seed (-1 for random)")
@@ -225,12 +225,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                        api_name="Video Generation")
         gr.Examples(
             examples=[
-                ['data/reference_images/chillout.jpg', 'data/drive_videos/nice.mp4', 25, 2.0, 1024, 0.2,
+                ['data/reference_images/chillout.jpg', 'data/drive_videos/nice.mp4', 25, 1.5, 1024, 0.2,
                  True, 'HMControlNet2', 'HelloMemeV5', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[2],
-                 list(MODEL_CONFIG['sd15']['loras'].keys())[1], 2.0, True],
-                ['data/reference_images/zzj.jpg', 'data/drive_videos/jue.mp4', 25, 2.0, 1024, 0.0,
-                 True, 'HMControlNet2', 'HelloMemeV2', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1],
-                 "None", 1.0, True],
+                 list(MODEL_CONFIG['sd15']['loras'].keys())[1], 1.5, True],
+                ['data/reference_images/zzj.jpg', 'data/drive_videos/jue.mp4', 25, 1.5, 1024, 0.0,
+                 True, 'HMControlNet2', 'HelloMemeV5', 'x1', 4, list(MODEL_CONFIG['sd15']['checkpoints'].keys())[1],
+                 "None", 1.5, True],
             ],
             fn=video_gen_fnc,
             inputs=[ref_img, drive_video, num_steps, guidance, seed, trans_ratio,
