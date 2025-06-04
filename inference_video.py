@@ -63,5 +63,5 @@ if __name__ == '__main__':
                                         crop_reference=True,
                                         patch_overlap=4,
                                         cntrl_version='cntrl2',
-                                        fps15=True)
+                                        fps8=True)
     print(f"Save path: {save_path}")

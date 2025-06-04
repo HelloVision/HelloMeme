@@ -191,25 +191,25 @@ class Generator(object):
                        crop_reference,
                        patch_overlap,
                        cntrl_version,
-                       fps15):
+                       fps8):
 
         dtype = self.toolkits['dtype']
         device = self.toolkits['device']
         save_size = 512
 
         rand_token = generate_random_string(8)
-        drive_video_path_fps15 = osp.splitext(drive_video_path)[0] + f'_{rand_token}_proced.mp4'
+        drive_video_path_fps8 = osp.splitext(drive_video_path)[0] + f'_{rand_token}_proced.mp4'
         save_video_path = osp.splitext(drive_video_path)[0] + f'_{rand_token}_save.mp4'
 
-        if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
-        if fps15:
-            ff_change_fps(drive_video_path, drive_video_path_fps15, 15)
-            fps = 15
+        if osp.exists(drive_video_path_fps8): os.remove(drive_video_path_fps8)
+        if fps8:
+            ff_change_fps(drive_video_path, drive_video_path_fps8, 8)
+            fps = 8
         else:
-            shutil.copy(drive_video_path, drive_video_path_fps15)
+            shutil.copy(drive_video_path, drive_video_path_fps8)
 
-        cap = cv2.VideoCapture(drive_video_path_fps15)
-        if not fps15:
+        cap = cv2.VideoCapture(drive_video_path_fps8)
+        if not fps8:
             fps = cap.get(cv2.CAP_PROP_FPS)
 
         frame_list = []
@@ -263,8 +263,8 @@ class Generator(object):
 
         save_video_audio_path = osp.splitext(drive_video_path)[0] + f'_{rand_token}_audio.mp4'
         if osp.exists(save_video_audio_path): os.remove(save_video_audio_path)
-        ff_cat_video_and_audio(save_video_path, drive_video_path_fps15, save_video_audio_path)
-        if osp.exists(drive_video_path_fps15): os.remove(drive_video_path_fps15)
+        ff_cat_video_and_audio(save_video_path, drive_video_path_fps8, save_video_audio_path)
+        if osp.exists(drive_video_path_fps8): os.remove(drive_video_path_fps8)
 
         if not osp.exists(save_video_audio_path):
             save_video_audio_path = save_video_path

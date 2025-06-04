@@ -184,10 +184,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 trans_ratio = gr.Slider(0.0, 1.0, 0.0, step=0.01, label="Trans Ratio", interactive=True)
                 with gr.Column():
                     crop_reference = gr.Checkbox(label="Crop Reference", value=True)
-                    fps15 = gr.Checkbox(label="Use fps15", value=True)
+                    fps8 = gr.Checkbox(label="Use fps8", value=True)
         def video_gen_fnc(ref_img, drive_video, num_steps, guidance, seed,
                         trans_ratio, crop_reference, cntrl_version, version, stylize, patch_overlap,
-                        checkpoint, lora, lora_scale, fps15):
+                        checkpoint, lora, lora_scale, fps8):
             if lora != 'None':
                 tmp_lora_info = MODEL_CONFIG['sd15']['loras'][lora]
             else:
@@ -221,7 +221,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                          crop_reference,
                                          patch_overlap,
                                          'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
-                                         fps15
+                                         fps8
                                         )
             except Exception as e:
                 print(e)
@@ -229,7 +229,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         exec_btn.click(fn=video_gen_fnc,
                        inputs=[ref_img, drive_video, num_steps, guidance, seed, trans_ratio,
                                crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint, lora,
-                               lora_scale, fps15],
+                               lora_scale, fps8],
                        outputs=result_video,
                        api_name="Video Generation")
         gr.Examples(
@@ -244,7 +244,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             fn=video_gen_fnc,
             inputs=[ref_img, drive_video, num_steps, guidance, seed, trans_ratio,
                     crop_reference, cntrl_version, version, stylize, patch_overlap, checkpoint,
-                    lora, lora_scale, fps15],
+                    lora, lora_scale, fps8],
             outputs=result_video,
             cache_examples=False,
         )
