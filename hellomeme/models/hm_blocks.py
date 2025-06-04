@@ -315,7 +315,10 @@ class SmallUnetV5(nn.Module):
 
 
 def get_posembed_linear(length, dim, dtype, device):
-    return get_1d_sincos_pos_embed_from_grid(dim, torch.arange(length), output_type='pt').to(dtype=dtype, device=device)
+    try:
+        return get_1d_sincos_pos_embed_from_grid(dim, torch.arange(length), output_type='pt').to(dtype=dtype, device=device)
+    except:
+        return get_1d_sincos_pos_embed_from_grid(dim, torch.arange(length)).to(dtype=dtype, device=device)
 
 
 class STKAttentionV5(nn.Module):
