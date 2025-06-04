@@ -11,7 +11,7 @@ import os
 
 import gradio as gr
 from generator import Generator, DEFAULT_PROMPT, MODEL_CONFIG
-import sys
+import torch
 import importlib.metadata
 
 
@@ -56,7 +56,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         </div>
     ''')
 
-    gen = Generator(gpu_id=0, modelscope=modelscope)
+    gen = Generator(gpu_id=0, dtype=torch.float16, sr=True, pipeline_dict_len=2, modelscope=modelscope)
 
     with gr.Tab("Image Generation"):
         with gr.Row():
@@ -102,20 +102,25 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 checkpoint_path = MODEL_CONFIG['sd15']['checkpoints'][checkpoint]
                 if lora != 'None':
                     lora_path = hf_hub_download(tmp_lora_info[0], filename=tmp_lora_info[1])
-            token = gen.load_pipeline("image", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
-                                    stylize=stylize, version=VERSION_DICT[version])
-            res = gen.image_generate(token,
-                                     ref_img,
-                                     drive_img,
-                                     num_steps,
-                                     guidance,
-                                     seed,
-                                     DEFAULT_PROMPT,
-                                     '',
-                                     trans_ratio,
-                                     crop_reference,
-                                     'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
-                                    )
+
+            token = None
+            try:
+                token = gen.load_pipeline("image", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
+                                        stylize=stylize, version=VERSION_DICT[version])
+                res = gen.image_generate(token,
+                                         ref_img,
+                                         drive_img,
+                                         num_steps,
+                                         guidance,
+                                         seed,
+                                         DEFAULT_PROMPT,
+                                         '',
+                                         trans_ratio,
+                                         crop_reference,
+                                         'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
+                                        )
+            except Exception as e:
+                print(e)
             return res
 
         exec_btn.click(fn=img_gen_fnc,
@@ -199,23 +204,27 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 if lora != 'None':
                     lora_path = hf_hub_download(tmp_lora_info[0], filename=tmp_lora_info[1])
 
-            token = gen.load_pipeline("video", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
-                                       stylize=stylize, version=VERSION_DICT[version])
+            res = None
+            try:
+                token = gen.load_pipeline("video", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
+                                           stylize=stylize, version=VERSION_DICT[version])
 
-            res = gen.video_generate(token,
-                                     ref_img,
-                                     drive_video,
-                                     num_steps,
-                                     guidance,
-                                     seed,
-                                     DEFAULT_PROMPT,
-                                     '',
-                                     trans_ratio,
-                                     crop_reference,
-                                     patch_overlap,
-                                     'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
-                                     fps15
-                                    )
+                res = gen.video_generate(token,
+                                         ref_img,
+                                         drive_video,
+                                         num_steps,
+                                         guidance,
+                                         seed,
+                                         DEFAULT_PROMPT,
+                                         '',
+                                         trans_ratio,
+                                         crop_reference,
+                                         patch_overlap,
+                                         'cntrl1' if cntrl_version == 'HMControlNet1' else 'cntrl2',
+                                         fps15
+                                        )
+            except Exception as e:
+                print(e)
             return res
         exec_btn.click(fn=video_gen_fnc,
                        inputs=[ref_img, drive_video, num_steps, guidance, seed, trans_ratio,
