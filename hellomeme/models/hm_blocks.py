@@ -18,7 +18,6 @@ from diffusers.models.attention import Attention, FeedForward
 from diffusers.models.unets.unet_motion_model import AnimateDiffTransformer3D
 from torchvision.models.resnet import BasicBlock
 from diffusers.models.embeddings import (SinusoidalPositionalEmbedding,
-                                         get_1d_sincos_pos_embed_from_grid,
                                          TimestepEmbedding)
 
 from diffusers.utils import logging
@@ -315,10 +314,19 @@ class SmallUnetV5(nn.Module):
 
 
 def get_posembed_linear(length, dim, dtype, device):
-    try:
-        return get_1d_sincos_pos_embed_from_grid(dim, torch.arange(length), output_type='pt').to(dtype=dtype, device=device)
-    except:
-        return get_1d_sincos_pos_embed_from_grid(dim, torch.arange(length)).to(dtype=dtype, device=device)
+
+    pos = torch.arange(length).float()
+    omega = torch.arange(dim // 2).float()
+    omega /= dim / 2.0
+    omega = 1.0 / 10000**omega  # (D/2,)
+
+    pos = pos.reshape(-1)  # (M,)
+    out = torch.outer(pos, omega)  # (M, D/2), outer product
+
+    emb_sin = torch.sin(out)  # (M, D/2)
+    emb_cos = torch.cos(out)  # (M, D/2)
+
+    return torch.concat([emb_sin, emb_cos], dim=1).to(device=device, dtype=dtype)  # (M, D)
 
 
 class STKAttentionV5(nn.Module):
