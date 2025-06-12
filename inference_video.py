@@ -9,7 +9,7 @@
 """
 
 import os
-from generator import Generator, DEFAULT_PROMPT, MODEL_CONFIG
+from generator import Generator, MODEL_CONFIG
 
 from PIL import Image
 
@@ -57,7 +57,7 @@ if __name__ == '__main__':
                                         num_steps=25,
                                         guidance=1.5,
                                         seed=-1,
-                                        prompt=DEFAULT_PROMPT,
+                                        prompt='',
                                         negative_prompt='',
                                         trans_ratio=0.5,
                                         crop_reference=True,

@@ -191,6 +191,38 @@ class SKReferenceAttentionV5(nn.Module):
 
         return hidden_states + self.proj(res2.contiguous())
 
+class STKReferenceModule(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        num_attention_heads: int = 1,
+        norm_elementwise_affine: bool = True,
+        norm_eps: float = 1e-5,
+    ):
+        super().__init__()
+        self.attn_ref = STKAttentionV5(in_channels=in_channels,
+                                     mid_channels=in_channels,
+                                     num_attention_heads=num_attention_heads,
+                                     time_embed_dim=None,
+                                     norm_elementwise_affine=norm_elementwise_affine,
+                                     norm_eps=norm_eps,
+                                     temporal_attn=False,)
+        self.attn = STKAttentionV5(in_channels=in_channels,
+                                     mid_channels=in_channels,
+                                     num_attention_heads=num_attention_heads,
+                                     time_embed_dim=None,
+                                     norm_elementwise_affine=norm_elementwise_affine,
+                                     norm_eps=norm_eps,
+                                     temporal_attn=False,)
+    def forward(self, hidden_states, ref_stats, num_frames):
+        if ref_stats.shape[0] != hidden_states.shape[0]:
+            ref_stats = ref_stats.repeat_interleave(num_frames, dim=0)
+        hidden_states = rearrange(hidden_states, "(b f) c h w -> b f h w c", f=num_frames)
+        ref_stats = rearrange(ref_stats, "(b f) c h w -> b f h w c", f=num_frames)
+        ref_stats = self.attn_ref(ref_stats, residual=False)
+        hidden_states = self.attn(hidden_states, ref_stats, residual=True)
+        hidden_states = rearrange(hidden_states, "b f h w c -> (b f) c h w")
+        return hidden_states
 
 class SmallUnet(nn.Module):
     def __init__(self, in_channels: int = 3,
@@ -380,7 +412,7 @@ class STKAttentionV5(nn.Module):
         self.norm = nn.LayerNorm(mid_channels, elementwise_affine=norm_elementwise_affine, eps=norm_eps)
         self.proj = zero_module(nn.Conv2d(mid_channels, in_channels, kernel_size=3, padding=1))
 
-    def forward(self, hidden_states, ref_stats=None, emb=None):
+    def forward(self, hidden_states, ref_stats=None, emb=None, residual=True):
         b, f, h, w, _ = hidden_states.shape
 
         hidden_states_in = rearrange(hidden_states, "b f h w c -> (b f) c h w")
@@ -433,7 +465,9 @@ class STKAttentionV5(nn.Module):
         else:
             rest = rearrange(resy, "b f h w c -> (b f) c h w")
 
-        return hidden_states + rearrange(self.proj(rest), "(b f) c h w -> b f h w c", f=f)
+        rest = rearrange(self.proj(rest), "(b f) c h w -> b f h w c", f=f)
+
+        return hidden_states + rest if residual else rest
 
 class STKCrossAttentionV5(nn.Module):
     def __init__(

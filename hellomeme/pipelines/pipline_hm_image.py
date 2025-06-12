@@ -45,6 +45,7 @@ class HMImagePipeline(HMPipeline):
         self.safety_checker.cpu()
 
     def insert_hm_modules(self, version, dtype, modelscope=False):
+        self.version = version
         if modelscope:
             from modelscope import snapshot_download
             hm_reference_dir = snapshot_download('songkey/hm_reference')

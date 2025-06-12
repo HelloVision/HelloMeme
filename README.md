@@ -44,6 +44,13 @@
 ## Introduction
 This repository contains the official code implementation of the paper [`HelloMeme`](https://arxiv.org/pdf/2410.22901). Any updates related to the code or models from the paper will be posted here. The code for the ablation experiments discussed in the paper will be added to the [`ExperimentsOnSKAttentions`](https://github.com/HelloVision/ExperimentsOnSKAttentions) section. Additionally, we plan to release a `ComfyUI` interface for HelloMeme, with updates posted here as well.
 
+### Comfyui Installation
+
+Keyword of ComfyUI Manager : `hellomeme-api`
+<p align="center">
+  <img src="data/ComfyUI_Manager.jpg" alt="hellomeme-api">
+</p>
+
 ## Getting Started
 
 ### 1. Create a Conda Environment
@@ -99,7 +106,7 @@ The input for the image generation script `inference_image.py` consists of a ref
 <table>
     <tr>
         <td><img src="./data/reference_images/harris.jpg" width="256" height="256"> <br> Reference Image</td>
-        <td ><img src="./data/drive_images/yao.jpg" width="192" height="256"> <br> Drive Image </td>
+        <td ><img src="./data/drive_images/yao.jpg" width="256" height="256"> <br> Drive Image </td>
     </tr>
 </table>
 

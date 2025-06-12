@@ -43,6 +43,7 @@ with open(config_path, 'r') as f:
     MODEL_CONFIG = json.load(f)
 
 DEFAULT_PROMPT = MODEL_CONFIG['prompt']
+DEFAULT_PROMPT_NEW = MODEL_CONFIG['prompt_new']
 
 class Generator(object):
     def __init__(self, gpu_id=0, dtype=torch.float16, pipeline_dict_len=10, sr=True, modelscope=False):
@@ -156,6 +157,9 @@ class Generator(object):
 
         generator = torch.Generator().manual_seed(seed if seed >= 0 else random.randint(0, 2**32-1))
 
+        PROMPT = DEFAULT_PROMPT_NEW if self.pipeline_dict[pipeline_token].version == 'v5b' else DEFAULT_PROMPT
+        prompt = PROMPT if prompt == '' else prompt + ", " + PROMPT
+
         result_img, latents = self.pipeline_dict[pipeline_token](
             prompt=[prompt],
             strength=1.0,
@@ -236,6 +240,9 @@ class Generator(object):
         control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans[0], save_size=save_size,
                                                 trans_ratio=trans_ratio)
         drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
+
+
+        prompt = DEFAULT_PROMPT if prompt == '' else prompt + ", " + DEFAULT_PROMPT
 
         generator = torch.Generator().manual_seed(seed if seed >= 0 else random.randint(0, 2**32-1))
         res_frames, latents = self.pipeline_dict[pipeline_token](

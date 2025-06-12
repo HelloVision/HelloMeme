@@ -22,5 +22,6 @@
       "[preset]Drawing": ["songkey/loras_sd_1_5", "Drawing.safetensors"]
     }
   },
-  "prompt": "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture"
+  "prompt": "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture",
+  "prompt_new": "best quality, highly detailed, masterpiece, person, portrait, headshot, looking at the viewer, sharp focus."
 }

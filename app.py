@@ -10,7 +10,7 @@
 import os
 
 import gradio as gr
-from generator import Generator, DEFAULT_PROMPT, MODEL_CONFIG
+from generator import Generator, MODEL_CONFIG
 import torch
 import importlib.metadata
 
@@ -32,7 +32,16 @@ print("missing pkgs", missing_params)
 
 modelscope = False
 
-VERSION_DICT = dict(
+VERSION_DICT_IMAGE = dict(
+    HelloMemeV1='v1',
+    HelloMemeV2='v2',
+    HelloMemeV3='v3',
+    HelloMemeV4='v4',
+    HelloMemeV5='v5',
+    HelloMemeV5b='v5b',
+)
+
+VERSION_DICT_VIDEO = dict(
     HelloMemeV1='v1',
     HelloMemeV2='v2',
     HelloMemeV3='v3',
@@ -72,7 +81,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3', 'HelloMemeV4', 'HelloMemeV5'], value="HelloMemeV5", label="Version")
+                version = gr.Dropdown(choices=list(VERSION_DICT_IMAGE.keys()), value="HelloMemeV5", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -106,14 +115,14 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             res = None
             try:
                 token = gen.load_pipeline("image", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
-                                        stylize=stylize, version=VERSION_DICT[version])
+                                        stylize=stylize, version=VERSION_DICT_IMAGE[version])
                 res = gen.image_generate(token,
                                          ref_img,
                                          drive_img,
                                          num_steps,
                                          guidance,
                                          seed,
-                                         DEFAULT_PROMPT,
+                                         '',
                                          '',
                                          trans_ratio,
                                          crop_reference,
@@ -171,7 +180,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                    value="None", label="LoRA")
             with gr.Row():
                 lora_scale = gr.Slider(0.0, 10.0, 1.0, step=0.1, label="Lora Scale", interactive=True)
-                version = gr.Dropdown(choices=['HelloMemeV1', 'HelloMemeV2', 'HelloMemeV3', 'HelloMemeV4', 'HelloMemeV5'], value="HelloMemeV2", label="Version")
+                version = gr.Dropdown(choices=list(VERSION_DICT_VIDEO.keys()), value="HelloMemeV2", label="Version")
                 cntrl_version = gr.Dropdown(choices=['HMControlNet1', 'HMControlNet2'], value="HMControlNet2", label="Control Version")
                 stylize = gr.Dropdown(choices=['x1', 'x2'], value="x1", label="Stylize")
         with gr.Accordion("Advanced Options", open=False):
@@ -207,7 +216,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             res = None
             try:
                 token = gen.load_pipeline("video", checkpoint_path=checkpoint_path, lora_path=lora_path, lora_scale=lora_scale,
-                                           stylize=stylize, version=VERSION_DICT[version])
+                                           stylize=stylize, version=VERSION_DICT_VIDEO[version])
 
                 res = gen.video_generate(token,
                                          ref_img,
@@ -215,7 +224,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                                          num_steps,
                                          guidance,
                                          seed,
-                                         DEFAULT_PROMPT,
+                                         '',
                                          '',
                                          trans_ratio,
                                          crop_reference,

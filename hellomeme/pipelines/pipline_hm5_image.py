@@ -20,10 +20,8 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
 from diffusers import DPMSolverMultistepScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
-from ..models import (HM3Denoising3D,
-                     HMPipeline, HM5ReferenceAdapter,
-                     HM5ControlNetBase,
-                     HM5SD15ControlProj)
+from ..models import (HM3Denoising3D, HMPipeline, HM5ReferenceAdapter,
+                      HM5bReferenceAdapter, HM5ControlNetBase, HM5SD15ControlProj)
 
 class HM5ImagePipeline(HMPipeline):
     def caryomitosis(self, **kwargs):
@@ -46,20 +44,28 @@ class HM5ImagePipeline(HMPipeline):
         self.safety_checker.cpu()
 
     def insert_hm_modules(self, version='v5', dtype=torch.float16, modelscope=False):
-
         self.version = version
         if modelscope:
             from modelscope import snapshot_download
-            hm_reference_dir = snapshot_download('songkey/hm5_reference')
+            if version == 'v5b':
+                hm_reference_dir = snapshot_download('songkey/hm5b_reference')
+            else:
+                hm_reference_dir = snapshot_download('songkey/hm5_reference')
             hm_control_dir = snapshot_download('songkey/hm5_control_base')
             hm_control_proj_dir = snapshot_download('songkey/hm5_control_proj')
         else:
-            hm_reference_dir = 'songkey/hm5_reference'
+            if version == 'v5b':
+                hm_reference_dir = 'songkey/hm5b_reference'
+            else:
+                hm_reference_dir = 'songkey/hm5_reference'
             hm_control_dir = 'songkey/hm5_control_base'
             hm_control_proj_dir = 'songkey/hm5_control_proj'
 
         if isinstance(self.unet, HM3Denoising3D):
-            hm_adapter = HM5ReferenceAdapter.from_pretrained(hm_reference_dir)
+            if version == 'v5b':
+                hm_adapter = HM5bReferenceAdapter.from_pretrained(hm_reference_dir)
+            else:
+                hm_adapter = HM5ReferenceAdapter.from_pretrained(hm_reference_dir)
 
             self.unet.insert_reference_adapter(hm_adapter)
             self.unet.to(device='cpu', dtype=dtype).eval()

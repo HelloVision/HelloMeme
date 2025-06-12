@@ -41,6 +41,7 @@ from diffusers.models.lora import adjust_lora_scale_text_encoder
 
 from .hm_blocks import (SKReferenceAttentionV3,
                         SKReferenceAttentionV5,
+                        STKReferenceModule,
                         SKReferenceAttention,
                         SKMotionModule,
                         SKMotionModuleV5)
@@ -132,6 +133,24 @@ class HM3ReferenceAdapter(ModelMixin, ConfigMixin):
                     in_channels=in_channels,
                     num_attention_heads=num_attention_heads,
                     num_positional_embeddings=64*2
+                )
+            )
+
+
+class HM5bReferenceAdapter(ModelMixin, ConfigMixin):
+    @register_to_config
+    def __init__(self, block_down_channels: Tuple[int] = (320, 640, 1280, 1280),
+                     block_up_channels: Tuple[int] = (1280, 1280, 1280, 640),
+                     num_attention_heads: int = 8,
+                     use_3d: bool = False):
+        super().__init__()
+
+        self.reference_modules_up = nn.ModuleList([])
+        for i, in_channels in enumerate(block_up_channels):
+            self.reference_modules_up.append(
+                STKReferenceModule(
+                    in_channels=in_channels,
+                    num_attention_heads=num_attention_heads,
                 )
             )
 

@@ -9,7 +9,7 @@
 """
 
 import os
-from generator import Generator, DEFAULT_PROMPT, MODEL_CONFIG
+from generator import Generator, MODEL_CONFIG
 
 from PIL import Image
 
@@ -50,14 +50,14 @@ if __name__ == '__main__':
     generator = Generator(gpu_id=gpu_id, modelscope=modelscope)
     ref_image = Image.open(ref_img_path)
     drive_image = Image.open(drive_img_path)
-    token = generator.load_pipeline('image', checkpoint_path, vae_path, lora_path, stylize='x1', version='v5')
+    token = generator.load_pipeline('image', checkpoint_path, vae_path, lora_path, stylize='x1', version='v5b')
     result = generator.image_generate(token,
                                       ref_image,
                                       drive_image,
                                       25,
                                       1.5,
                                       1,
-                                      DEFAULT_PROMPT,
+                                      '',
                                       '',
                                       0.5,
                                       False,
