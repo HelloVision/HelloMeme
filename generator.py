@@ -76,7 +76,7 @@ class Generator(object):
                 tmp_pipeline = HM3ImagePipeline.from_pretrained(sd1_5_dir)
             else:
                 tmp_pipeline = HM3VideoPipeline.from_pretrained(sd1_5_dir)
-        elif version == 'v5':
+        elif version == 'v5' or version == 'v5b':
             if type == 'image':
                 tmp_pipeline = HM5ImagePipeline.from_pretrained(sd1_5_dir)
             else:
