@@ -13,13 +13,19 @@
       "[preset]epicphotogasm_ultimateFidelity": "songkey/epicphotogasm_ultimateFidelity",
       "[preset]epicrealism_naturalSinRC1VAE": "songkey/epicrealism_naturalSinRC1VAE",
       "[preset]xxmix9realistic_v40": "songkey/xxmix9realistic_v40",
-      "[preset]cyberrealistic_v80": "songkey/cyberrealistic_v80"
+      "[preset]cyberrealistic_v80": "songkey/cyberrealistic_v80",
+      "[preset]animeanything_v10": "songkey/animeanything_v10"
     },
     "loras": {
       "[preset]BabyFaceV1": ["songkey/loras_sd_1_5", "baby_face_v1.safetensors"],
       "[preset]MoreDetails": ["songkey/loras_sd_1_5", "more_details.safetensors"],
       "[preset]PixelPortraitV1": ["songkey/loras_sd_1_5", "pixel-portrait-v1.safetensors"],
-      "[preset]Drawing": ["songkey/loras_sd_1_5", "Drawing.safetensors"]
+      "[preset]Drawing": ["songkey/loras_sd_1_5", "Drawing.safetensors"],
+      "[preset]anime_extract": ["songkey/loras_sd_1_5", "anime_extract.safetensors"],
+      "[preset]animemix_v3_offset": ["songkey/loras_sd_1_5", "animemix_v3_offset.safetensors"],
+      "[preset]animeoutlineV4_16": ["songkey/loras_sd_1_5", "animeoutlineV4_16.safetensors"],
+      "[preset]ghibli_anime_v1": ["songkey/loras_sd_1_5", "ghibli_anime_v1.safetensors"],
+      "[preset]zyd232_InkStyle_v1_0": ["songkey/loras_sd_1_5", "zyd232_InkStyle_v1_0.safetensors"]
     }
   },
   "prompt": "(best quality), highly detailed, ultra-detailed, headshot, person, well-placed five sense organs, looking at the viewer, centered composition, sharp focus, realistic skin texture",

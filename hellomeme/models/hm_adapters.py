@@ -445,8 +445,8 @@ class CopyWeights(object):
         config = dict(unet.config)
 
         # Need this for backwards compatibility with UNet2DConditionModel checkpoints
-        if not config.get("num_attention_heads"):
-            config["num_attention_heads"] = config["attention_head_dim"]
+        # if not config.get("num_attention_heads"):
+        #     config["num_attention_heads"] = config["attention_head_dim"]
 
         config = FrozenDict(config)
         model = cls.from_config(config)
