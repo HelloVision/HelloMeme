@@ -22,6 +22,9 @@ from diffusers import DPMSolverMultistepScheduler
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import retrieve_timesteps, retrieve_latents
 from ..models import (HM3Denoising3D, HMPipeline, HM5ReferenceAdapter,
                       HM5bReferenceAdapter, HM5ControlNetBase, HM5SD15ControlProj)
+from ..tools.utils import creat_model_from_cloud
+
+
 
 class HM5ImagePipeline(HMPipeline):
     def caryomitosis(self, **kwargs):
@@ -41,31 +44,27 @@ class HM5ImagePipeline(HMPipeline):
         self.vae_decode = copy.deepcopy(self.vae)
         self.text_encoder.cpu()
         self.text_encoder_ref = copy.deepcopy(self.text_encoder)
-        self.safety_checker.cpu()
+        if hasattr(self, 'safety_checker'):
+            del self.safety_checker
 
     def insert_hm_modules(self, version='v5', dtype=torch.float16, modelscope=False):
         self.version = version
-        if modelscope:
-            from modelscope import snapshot_download
-            if version == 'v5b':
-                hm_reference_dir = snapshot_download('songkey/hm5b_reference')
-            else:
-                hm_reference_dir = snapshot_download('songkey/hm5_reference')
-            hm_control_dir = snapshot_download('songkey/hm5_control_base')
-            hm_control_proj_dir = snapshot_download('songkey/hm5_control_proj')
+
+        hm_control_dir = 'songkey/hm5_control_base'
+        hm_control_proj_dir = 'songkey/hm5_control_proj'
+        if version == 'v5':
+            hm_reference_dir = 'songkey/hm5_reference'
+        elif version == 'v5b':
+            hm_reference_dir = 'songkey/hm5b_reference'
         else:
-            if version == 'v5b':
-                hm_reference_dir = 'songkey/hm5b_reference'
-            else:
-                hm_reference_dir = 'songkey/hm5_reference'
-            hm_control_dir = 'songkey/hm5_control_base'
-            hm_control_proj_dir = 'songkey/hm5_control_proj'
+            hm_reference_dir = 'songkey/hm5c_reference'
+            hm_control_proj_dir = 'songkey/hm5c_control_proj'
 
         if isinstance(self.unet, HM3Denoising3D):
-            if version == 'v5b':
-                hm_adapter = HM5bReferenceAdapter.from_pretrained(hm_reference_dir)
+            if version == 'v5':
+                hm_adapter = creat_model_from_cloud(HM5ReferenceAdapter, hm_reference_dir, modelscope=modelscope)
             else:
-                hm_adapter = HM5ReferenceAdapter.from_pretrained(hm_reference_dir)
+                hm_adapter = creat_model_from_cloud(HM5bReferenceAdapter, hm_reference_dir, modelscope=modelscope)
 
             self.unet.insert_reference_adapter(hm_adapter)
             self.unet.to(device='cpu', dtype=dtype).eval()
@@ -79,8 +78,8 @@ class HM5ImagePipeline(HMPipeline):
         if hasattr(self, "mp_control_proj"):
             del self.mp_control_proj
 
-        self.mp_control = HM5ControlNetBase.from_pretrained(hm_control_dir)
-        self.mp_control_proj = HM5SD15ControlProj.from_pretrained(hm_control_proj_dir)
+        self.mp_control = creat_model_from_cloud(HM5ControlNetBase, hm_control_dir, modelscope=modelscope)
+        self.mp_control_proj = creat_model_from_cloud(HM5SD15ControlProj, hm_control_proj_dir, modelscope=modelscope)
 
         self.mp_control.to(device='cpu', dtype=dtype).eval()
         self.mp_control_proj.to(device='cpu', dtype=dtype).eval()
@@ -88,12 +87,14 @@ class HM5ImagePipeline(HMPipeline):
         self.vae.to(device='cpu', dtype=dtype).eval()
         self.vae_decode.to(device='cpu', dtype=dtype).eval()
         self.text_encoder.to(device='cpu', dtype=dtype).eval()
+        self.text_encoder_ref.to(device='cpu', dtype=dtype).eval()
 
     @torch.no_grad()
     def __call__(
             self,
             prompt: Union[str, List[str]] = None,
             image: PipelineImageInput = None,
+            ref_params: Dict[str, Any] = None,
             drive_params: Dict[str, Any] = None,
             strength: float = 0.8,
             num_inference_steps: Optional[int] = 50,
@@ -245,28 +246,52 @@ class HM5ImagePipeline(HMPipeline):
         c, h, w = ref_latents.shape[1:]
 
         condition = drive_params['condition'].clone().to(device=device)
+        if self.version == 'v5c':
+            ref_condition = ref_params['condition'].clone().to(device=device)
         if self.do_classifier_free_guidance:
             condition = torch.cat([torch.ones_like(condition) * -1, condition], dim=0)
+            if self.version == 'v5c':
+                ref_condition = torch.cat([torch.ones_like(ref_condition) * -1, ref_condition], dim=0)
 
+        if self.version == 'v5c':
+            ref_control_latents = {}
         control_latents = {}
         self.mp_control.to(device=device)
         self.mp_control_proj.to(device=device)
         if 'drive_coeff' in drive_params:
             drive_coeff = drive_params['drive_coeff'].clone().to(device=device)
             face_parts = drive_params['face_parts'].clone().to(device=device)
+            if self.version == 'v5c':
+                ref_drive_coeff = ref_params['drive_coeff'].clone().to(device=device)
+                ref_face_parts = ref_params['face_parts'].clone().to(device=device)
             if self.do_classifier_free_guidance:
                 drive_coeff = torch.cat([torch.zeros_like(drive_coeff), drive_coeff], dim=0)
                 face_parts = torch.cat([torch.zeros_like(face_parts), face_parts], dim=0)
+                if self.version == 'v5c':
+                    ref_drive_coeff = torch.cat([torch.zeros_like(ref_drive_coeff), ref_drive_coeff], dim=0)
+                    ref_face_parts = torch.cat([torch.zeros_like(ref_face_parts), ref_face_parts], dim=0)
             control_latents1 = self.mp_control(condition=condition, drive_coeff=drive_coeff, face_parts=face_parts)
             control_latents1 = self.mp_control_proj(control_latents1)
             control_latents.update(control_latents1)
+            if self.version == 'v5c':
+                ref_control_latents1 = self.mp_control(condition=ref_condition, drive_coeff=ref_drive_coeff, face_parts=ref_face_parts)
+                ref_control_latents1 = self.mp_control_proj(ref_control_latents1)
+                ref_control_latents.update(ref_control_latents1)
         elif 'pd_fpg' in drive_params:
             pd_fpg = drive_params['pd_fpg'].clone().to(device=device)
+            if self.version == 'v5c':
+                ref_pd_fpg = ref_params['pd_fpg'].clone().to(device=device)
             if self.do_classifier_free_guidance:
                 pd_fpg = torch.cat([torch.zeros_like(pd_fpg), pd_fpg], dim=0)
+                if self.version == 'v5c':
+                    ref_pd_fpg = torch.cat([torch.zeros_like(ref_pd_fpg), ref_pd_fpg], dim=0)
             control_latents2 = self.mp_control(condition=condition, emo_embedding=pd_fpg)
             control_latents2 = self.mp_control_proj(control_latents2)
             control_latents.update(control_latents2)
+            if self.version == 'v5c':
+                ref_control_latents2 = self.mp_control(condition=ref_condition, emo_embedding=ref_pd_fpg)
+                ref_control_latents2 = self.mp_control_proj(ref_control_latents2)
+                ref_control_latents.update(ref_control_latents2)
         self.mp_control.cpu()
         self.mp_control_proj.cpu()
 
@@ -289,6 +314,7 @@ class HM5ImagePipeline(HMPipeline):
             latent_model_input.unsqueeze(2),
             0,
             encoder_hidden_states=prompt_embeds_ref,
+            control_hidden_states=ref_control_latents if self.version == 'v5c' else None,
             return_dict=False,
         )[1]
         self.unet_ref.cpu()

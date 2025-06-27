@@ -9,16 +9,13 @@
 import numpy as np
 import cv2
 import os.path as osp
-from .utils import create_onnx_session, get_warp_mat_bbox_by_gt_pts_float
+from .utils import create_onnx_session, get_warp_mat_bbox_by_gt_pts_float, download_file_from_cloud
 
 class HelloARKitBSPred(object):
     def __init__(self, gpu_id=0, modelscope=False):
-        if modelscope:
-            from modelscope import snapshot_download
-            model_path = osp.join(snapshot_download('songkey/hello_group_facemodel'), 'hello_arkit_blendshape.onnx')
-        else:
-            from huggingface_hub import hf_hub_download
-            model_path = hf_hub_download('songkey/hello_group_facemodel', filename='hello_arkit_blendshape.onnx')
+        model_path = download_file_from_cloud(model_id='songkey/hello_group_facemodel',
+                                              file_name='hello_arkit_blendshape.onnx',
+                                              modelscope=modelscope)
 
         self.face_rig_net = create_onnx_session(model_path, gpu_id=gpu_id)
         self.onnx_input_name = self.face_rig_net.get_inputs()[0].name

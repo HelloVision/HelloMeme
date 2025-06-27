@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 import math
 import os.path as osp
+from .utils import download_file_from_cloud
 
 def pixel_unshuffle(x, scale):
     """ Pixel unshuffle.
@@ -183,13 +184,7 @@ class RealESRGANer():
         else:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') if device is None else device
 
-        if modelscope:
-            from modelscope import snapshot_download
-            model_path = osp.join(snapshot_download('songkey/ESRGAN'), 'RealESRGAN_x2plus.pth')
-        else:
-            from huggingface_hub import hf_hub_download
-            model_path = hf_hub_download('songkey/ESRGAN', filename='RealESRGAN_x2plus.pth')
-
+        model_path = download_file_from_cloud(model_id='songkey/ESRGAN', file_name='RealESRGAN_x2plus.pth', modelscope=modelscope)
         loadnet = torch.load(model_path, map_location=torch.device('cpu'))
 
         # prefer to use params_ema

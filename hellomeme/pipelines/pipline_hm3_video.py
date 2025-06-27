@@ -24,7 +24,10 @@ from diffusers import MotionAdapter, EulerDiscreteScheduler # DPMSolverMultistep
 from diffusers.utils.torch_utils import randn_tensor
 
 from ..models import (HM3Denoising3D, HM3DenoisingMotion, HM3MotionAdapter,
-                      HMV3ControlNet, HM3ReferenceAdapter, HMPipeline, HMControlNetBase, HM4SD15ControlProj)
+                      HMV3ControlNet, HM3ReferenceAdapter, HMPipeline,
+                      HMControlNetBase, HM4SD15ControlProj)
+from ..tools.utils import creat_model_from_cloud
+
 
 class HM3VideoPipeline(HMPipeline):
     def caryomitosis(self, version='v3', modelscope=False, **kwargs):
@@ -38,21 +41,14 @@ class HM3VideoPipeline(HMPipeline):
         self.unet_pre = HM3Denoising3D.from_unet2d(self.unet)
         self.unet_pre.cpu()
 
-        if modelscope:
-            from modelscope import snapshot_download
-            if version == 'v3':
-                hm_animatediff_dir = snapshot_download('songkey/hm3_animatediff')
-            else:
-                hm_animatediff_dir = snapshot_download('songkey/hm4_animatediff')
+        if version == 'v3':
+            hm_animatediff_dir = 'songkey/hm3_animatediff'
         else:
-            if version == 'v3':
-                hm_animatediff_dir = 'songkey/hm3_animatediff'
-            else:
-                hm_animatediff_dir = 'songkey/hm4_animatediff'
+            hm_animatediff_dir = 'songkey/hm4_animatediff'
 
         self.num_frames = 12
 
-        adapter = MotionAdapter.from_pretrained(hm_animatediff_dir, torch_dtype=torch.float16)
+        adapter = creat_model_from_cloud(MotionAdapter, hm_animatediff_dir, modelscope=modelscope)
 
         unet = HM3DenoisingMotion.from_unet2d(unet=self.unet, motion_adapter=adapter, load_weights=True)
         del self.unet
@@ -62,35 +58,24 @@ class HM3VideoPipeline(HMPipeline):
         self.vae_decode = copy.deepcopy(self.vae)
         self.text_encoder.cpu()
         self.text_encoder_ref = copy.deepcopy(self.text_encoder)
-        self.safety_checker.cpu()
+        if hasattr(self, 'safety_checker'):
+            del self.safety_checker
 
     def insert_hm_modules(self, version='v3', dtype=torch.float16, modelscope=False):
         self.version = version
 
-        if modelscope:
-            from modelscope import snapshot_download
-            if version == 'v3':
-                hm_reference_dir = snapshot_download('songkey/hm3_reference')
-                hm_control_dir = snapshot_download('songkey/hm3_control_mix')
-                hm_motion_dir = snapshot_download('songkey/hm3_motion')
-            else:
-                hm_reference_dir = snapshot_download('songkey/hm4_reference')
-                hm_control_dir = snapshot_download('songkey/hm_control_base')
-                hm_control_proj_dir = snapshot_download('songkey/hm4_control_proj')
-                hm_motion_dir = snapshot_download('songkey/hm4_motion')
+        if version == 'v3':
+            hm_reference_dir = 'songkey/hm3_reference'
+            hm_control_dir = 'songkey/hm3_control_mix'
+            hm_motion_dir = 'songkey/hm3_motion'
         else:
-            if version == 'v3':
-                hm_reference_dir = 'songkey/hm3_reference'
-                hm_control_dir = 'songkey/hm3_control_mix'
-                hm_motion_dir = 'songkey/hm3_motion'
-            else:
-                hm_reference_dir = 'songkey/hm4_reference'
-                hm_control_dir = 'songkey/hm_control_base'
-                hm_control_proj_dir = 'songkey/hm4_control_proj'
-                hm_motion_dir = 'songkey/hm4_motion'
+            hm_reference_dir = 'songkey/hm4_reference'
+            hm_control_dir = 'songkey/hm_control_base'
+            hm_control_proj_dir = 'songkey/hm4_control_proj'
+            hm_motion_dir = 'songkey/hm4_motion'
 
-        hm_adapter = HM3ReferenceAdapter.from_pretrained(hm_reference_dir)
-        motion_adapter = HM3MotionAdapter.from_pretrained(hm_motion_dir)
+        hm_adapter = creat_model_from_cloud(HM3ReferenceAdapter, hm_reference_dir, modelscope=modelscope)
+        motion_adapter = creat_model_from_cloud(HM3MotionAdapter, hm_motion_dir, modelscope=modelscope)
 
         if isinstance(self.unet, HM3DenoisingMotion):
             self.unet.insert_reference_adapter(hm_adapter)
@@ -111,10 +96,10 @@ class HM3VideoPipeline(HMPipeline):
             del self.mp_control_proj
 
         if version == 'v3':
-            self.mp_control = HMV3ControlNet.from_pretrained(hm_control_dir)
+            self.mp_control = creat_model_from_cloud(HMV3ControlNet, hm_control_dir, modelscope=modelscope)
         else:
-            self.mp_control = HMControlNetBase.from_pretrained(hm_control_dir)
-            self.mp_control_proj = HM4SD15ControlProj.from_pretrained(hm_control_proj_dir)
+            self.mp_control = creat_model_from_cloud(HMControlNetBase, hm_control_dir, modelscope=modelscope)
+            self.mp_control_proj = creat_model_from_cloud(HM4SD15ControlProj, hm_control_proj_dir, modelscope=modelscope)
 
             self.mp_control_proj.to(device='cpu', dtype=dtype).eval()
         self.mp_control.to(device='cpu', dtype=dtype).eval()
@@ -122,6 +107,7 @@ class HM3VideoPipeline(HMPipeline):
         self.vae.to(device='cpu', dtype=dtype).eval()
         self.vae_decode.to(device='cpu', dtype=dtype).eval()
         self.text_encoder.to(device='cpu', dtype=dtype).eval()
+        self.text_encoder_ref.to(device='cpu', dtype=dtype).eval()
 
     @torch.no_grad()
     def gen_ref_cache(self, latent, prompt_embeds, added_cond_kwargs, device, add_axis=False):

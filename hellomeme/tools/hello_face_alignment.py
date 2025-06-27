@@ -11,20 +11,19 @@ import os.path as osp
 import numpy as np
 from .hello_face_det import HelloFaceDet
 from .utils import get_warp_mat_bbox, get_warp_mat_bbox_by_gt_pts_float, transform_points
-from .utils import create_onnx_session
+from .utils import create_onnx_session, download_file_from_cloud
 
 class HelloFaceAlignment(object):
     def __init__(self, gpu_id=None, modelscope=False):
         expand_ratio = 0.15
 
-        if modelscope:
-            from modelscope import snapshot_download
-            alignment_model_path = osp.join(snapshot_download('songkey/hello_group_facemodel'), 'hello_face_landmark.onnx')
-            det_model_path = osp.join(snapshot_download('songkey/hello_group_facemodel'), 'hello_face_det.onnx')
-        else:
-            from huggingface_hub import hf_hub_download
-            alignment_model_path = hf_hub_download('songkey/hello_group_facemodel', filename='hello_face_landmark.onnx')
-            det_model_path = hf_hub_download('songkey/hello_group_facemodel', filename='hello_face_det.onnx')
+        alignment_model_path = download_file_from_cloud(model_id='songkey/hello_group_facemodel',
+                                              file_name='hello_face_landmark.onnx',
+                                              modelscope=modelscope)
+
+        det_model_path = download_file_from_cloud(model_id='songkey/hello_group_facemodel',
+                                              file_name='hello_face_det.onnx',
+                                              modelscope=modelscope)
         self.face_alignment_net_222 = (
             create_onnx_session(alignment_model_path, gpu_id=gpu_id))
         self.onnx_input_name_222 = self.face_alignment_net_222.get_inputs()[0].name

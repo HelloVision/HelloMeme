@@ -24,7 +24,10 @@ from diffusers import DPMSolverMultistepScheduler
 from diffusers.utils.torch_utils import randn_tensor
 
 from ..models import (HM3Denoising3D, HM5MotionAdapter,
-                      HM5ReferenceAdapter, HMPipeline, HM5ControlNetBase, HM5SD15ControlProj)
+                      HM5ReferenceAdapter, HM5bReferenceAdapter,
+                      HMPipeline, HM5ControlNetBase, HM5SD15ControlProj)
+from ..tools.utils import creat_model_from_cloud
+
 
 class HM5VideoPipeline(HMPipeline):
     def caryomitosis(self, version='v5', modelscope=False, **kwargs):
@@ -46,25 +49,25 @@ class HM5VideoPipeline(HMPipeline):
         self.vae_decode = copy.deepcopy(self.vae)
         self.text_encoder.cpu()
         self.text_encoder_ref = copy.deepcopy(self.text_encoder)
-        self.safety_checker.cpu()
+        if hasattr(self, 'safety_checker'):
+            del self.safety_checker
 
     def insert_hm_modules(self, version='v5', dtype=torch.float16, modelscope=False):
         self.version = version
 
-        if modelscope:
-            from modelscope import snapshot_download
-            hm_reference_dir = snapshot_download('songkey/hm5_reference')
-            hm_control_dir = snapshot_download('songkey/hm5_control_base')
-            hm_control_proj_dir = snapshot_download('songkey/hm5_control_proj')
-            hm_motion_dir = snapshot_download('songkey/hm5_motion')
+        if version == 'v5b':
+            hm_reference_dir = 'songkey/hm5b_reference'
         else:
             hm_reference_dir = 'songkey/hm5_reference'
-            hm_control_dir = 'songkey/hm5_control_base'
-            hm_control_proj_dir = 'songkey/hm5_control_proj'
-            hm_motion_dir = 'songkey/hm5_motion'
+        hm_control_dir = 'songkey/hm5_control_base'
+        hm_control_proj_dir = 'songkey/hm5_control_proj'
+        hm_motion_dir = 'songkey/hm5_motion'
 
-        hm_adapter = HM5ReferenceAdapter.from_pretrained(hm_reference_dir)
-        motion_adapter = HM5MotionAdapter.from_pretrained(hm_motion_dir)
+        if version == 'v5b':
+            hm_adapter = creat_model_from_cloud(HM5bReferenceAdapter, hm_reference_dir, modelscope=modelscope)
+        else:
+            hm_adapter = creat_model_from_cloud(HM5ReferenceAdapter, hm_reference_dir, modelscope=modelscope)
+        motion_adapter = creat_model_from_cloud(HM5MotionAdapter, hm_motion_dir, modelscope=modelscope)
 
         if isinstance(self.unet, HM3Denoising3D):
             self.unet.insert_reference_adapter(hm_adapter)
@@ -79,14 +82,15 @@ class HM5VideoPipeline(HMPipeline):
         if hasattr(self, "mp_control_proj"):
             del self.mp_control_proj
 
-        self.mp_control = HM5ControlNetBase.from_pretrained(hm_control_dir)
-        self.mp_control_proj = HM5SD15ControlProj.from_pretrained(hm_control_proj_dir)
+        self.mp_control = creat_model_from_cloud(HM5ControlNetBase, hm_control_dir, modelscope=modelscope)
+        self.mp_control_proj = creat_model_from_cloud(HM5SD15ControlProj, hm_control_proj_dir, modelscope=modelscope)
         self.mp_control_proj.to(device='cpu', dtype=dtype).eval()
         self.mp_control.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()
         self.vae_decode.to(device='cpu', dtype=dtype).eval()
         self.text_encoder.to(device='cpu', dtype=dtype).eval()
+        self.text_encoder_ref.to(device='cpu', dtype=dtype).eval()
 
     @torch.no_grad()
     def gen_ref_cache(self, latent, prompt_embeds, added_cond_kwargs, device, add_axis=False):

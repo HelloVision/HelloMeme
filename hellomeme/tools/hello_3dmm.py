@@ -13,7 +13,7 @@ import numpy as np
 import cv2
 import os.path as osp
 
-from .utils import get_warp_mat_bbox_by_gt_pts_float, create_onnx_session
+from .utils import get_warp_mat_bbox_by_gt_pts_float, create_onnx_session, download_file_from_cloud
 
 def crop_transl_to_full_transl(crop_trans, crop_center, scale, full_center, focal_length):
     """
@@ -37,12 +37,9 @@ def crop_transl_to_full_transl(crop_trans, crop_center, scale, full_center, foca
 
 class Hello3DMMPred(object):
     def __init__(self, gpu_id=None, modelscope=False):
-        if modelscope:
-            from modelscope import snapshot_download
-            model_path = osp.join(snapshot_download('songkey/hello_group_facemodel'), 'hello_3dmm.onnx')
-        else:
-            from huggingface_hub import hf_hub_download
-            model_path = hf_hub_download('songkey/hello_group_facemodel', filename='hello_3dmm.onnx')
+        model_path = download_file_from_cloud(model_id='songkey/hello_group_facemodel',
+                                              file_name='hello_3dmm.onnx',
+                                              modelscope=modelscope)
         self.deep3d_pred_net = create_onnx_session(model_path, gpu_id=gpu_id)
         self.deep3d_pred_net_input_name = self.deep3d_pred_net.get_inputs()[0].name
         self.deep3d_pred_net_output_name = [output.name for output in self.deep3d_pred_net.get_outputs()]

@@ -25,6 +25,8 @@ from diffusers import MotionAdapter, EulerDiscreteScheduler
 from ..models import (HMDenoising3D, HMDenoisingMotion, HMControlNet, HMControlNet2,
                       HMV2ControlNet, HMV2ControlNet2, HMPipeline)
 from ..models import HMReferenceAdapter
+from ..tools.utils import creat_model_from_cloud
+
 
 class HMVideoPipeline(HMPipeline):
     def caryomitosis(self, version, modelscope=False, **kwargs):
@@ -38,19 +40,13 @@ class HMVideoPipeline(HMPipeline):
         self.unet_pre = HMDenoising3D.from_unet2d(self.unet)
         self.unet_pre.cpu()
 
-        if modelscope:
-            from modelscope import snapshot_download
-            hm_animatediff_dir = snapshot_download('songkey/hm_animatediff_frame12')
-            hm2_animatediff_dir = snapshot_download('songkey/hm2_animatediff_frame12')
-        else:
+        if version == 'v1':
             hm_animatediff_dir = 'songkey/hm_animatediff_frame12'
-            hm2_animatediff_dir = 'songkey/hm2_animatediff_frame12'
+        else:
+            hm_animatediff_dir = 'songkey/hm2_animatediff_frame12'
 
         self.num_frames = 12
-        if version == 'v1':
-            adapter = MotionAdapter.from_pretrained(hm_animatediff_dir, torch_dtype=torch.float16)
-        else:
-            adapter = MotionAdapter.from_pretrained(hm2_animatediff_dir, torch_dtype=torch.float16)
+        adapter = creat_model_from_cloud(MotionAdapter, hm_animatediff_dir, modelscope=modelscope)
         unet = HMDenoisingMotion.from_unet2d(unet=self.unet, motion_adapter=adapter, load_weights=True)
         # todo: 不够优雅
         del self.unet
@@ -63,26 +59,17 @@ class HMVideoPipeline(HMPipeline):
         self.safety_checker.cpu()
 
     def insert_hm_modules(self, version, dtype, modelscope=False):
-        if modelscope:
-            from modelscope import snapshot_download
-            hm_reference_dir = snapshot_download('songkey/hm_reference')
-            hm2_reference_dir = snapshot_download('songkey/hm2_reference')
-            hm_control_dir = snapshot_download('songkey/hm_control')
-            hm_control2_dir = snapshot_download('songkey/hm_control2')
-            hm2_control_dir = snapshot_download('songkey/hm2_control')
-            hm2_control2_dir = snapshot_download('songkey/hm2_control2')
-        else:
+        if version == 'v1':
             hm_reference_dir = 'songkey/hm_reference'
-            hm2_reference_dir = 'songkey/hm2_reference'
             hm_control_dir = 'songkey/hm_control'
             hm_control2_dir = 'songkey/hm_control2'
-            hm2_control_dir = 'songkey/hm2_control'
-            hm2_control2_dir = 'songkey/hm2_control2'
-
-        if version == 'v1':
-            hm_adapter = HMReferenceAdapter.from_pretrained(hm_reference_dir)
         else:
-            hm_adapter = HMReferenceAdapter.from_pretrained(hm2_reference_dir)
+            hm_reference_dir = 'songkey/hm2_reference'
+            hm_control_dir = 'songkey/hm2_control'
+            hm_control2_dir = 'songkey/hm2_control2'
+
+        hm_adapter = creat_model_from_cloud(HMReferenceAdapter, hm_reference_dir, modelscope=modelscope)
+
         if isinstance(self.unet, HMDenoisingMotion):
             self.unet.insert_reference_adapter(hm_adapter)
             self.unet.to(device='cpu', dtype=dtype).eval()
@@ -97,23 +84,26 @@ class HMVideoPipeline(HMPipeline):
         if hasattr(self, "mp_control"):
             del self.mp_control
         if version == 'v1':
-            self.mp_control = HMControlNet.from_pretrained(hm_control_dir)
+            self.mp_control = creat_model_from_cloud(HMControlNet, hm_control_dir, modelscope=modelscope)
         else:
-            self.mp_control = HMV2ControlNet.from_pretrained(hm2_control_dir)
+            self.mp_control = creat_model_from_cloud(HMV2ControlNet, hm_control_dir, modelscope=modelscope)
 
         self.mp_control.to(device='cpu', dtype=dtype).eval()
 
         if hasattr(self, "mp_control2"):
             del self.mp_control2
         if version == 'v1':
-            self.mp_control2 = HMControlNet2.from_pretrained(hm_control2_dir)
+            self.mp_control2 = creat_model_from_cloud(HMControlNet2, hm_control2_dir, modelscope=modelscope)
         else:
-            self.mp_control2 = HMV2ControlNet2.from_pretrained(hm2_control2_dir)
+            self.mp_control2 = creat_model_from_cloud(HMV2ControlNet2, hm_control2_dir, modelscope=modelscope)
         self.mp_control2.to(device='cpu', dtype=dtype).eval()
 
         self.vae.to(device='cpu', dtype=dtype).eval()
         self.vae_decode.to(device='cpu', dtype=dtype).eval()
         self.text_encoder.to(device='cpu', dtype=dtype).eval()
+        self.text_encoder_ref.to(device='cpu', dtype=dtype).eval()
+        if hasattr(self, 'safety_checker'):
+            del self.safety_checker
 
     @torch.no_grad()
     def __call__(

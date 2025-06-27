@@ -8,27 +8,9 @@
 @Desc   : 
 """
 import os
-
 import gradio as gr
 from generator import Generator, MODEL_CONFIG
 import torch
-import importlib.metadata
-
-
-installed_packages = [package.name for package in importlib.metadata.distributions()]
-
-REQUIRED = {
-    'diffusers':'0.33.1', 'transformers':'4.46.3', 'einops':'0.8.0', 'opencv-python':'4.10.0.84', 'tqdm':'4.67.0',
-    'pillow':'10.2.0', 'onnxruntime-gpu':'1.18.1', 'onnx':'1.17.0', 'safetensors':'0.4.5',
-    'accelerate':'1.1.1', 'peft':'0.13.2'
-}
-
-missing = [name for name in REQUIRED.keys() if name not in installed_packages]
-missing_params = ' '.join([f'{k}=={REQUIRED[k]}' for k in missing])
-print("missing pkgs", missing_params)
-
-# if missing:
-#     os.system(f'{sys.executable} -m pip install {missing_params}')
 
 modelscope = False
 
@@ -39,6 +21,7 @@ VERSION_DICT_IMAGE = dict(
     HelloMemeV4='v4',
     HelloMemeV5='v5',
     HelloMemeV5b='v5b',
+    HelloMemeV5c='v5c',
 )
 
 VERSION_DICT_VIDEO = dict(

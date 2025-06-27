@@ -66,12 +66,8 @@ To install the latest version of PyTorch, please refer to the official [PyTorch]
 ### 3. Install dependencies
 
 ```bash
-pip install diffusers transformers einops scipy opencv-python tqdm pillow onnxruntime-gpu onnx safetensors accelerate peft imageio imageio[ffmpeg] torchvision 
+pip install -r requirements.txt
 ```
-
-> [!IMPORTANT]  
-> 
-> Note the version of diffusers required: frequent updates to diffusers may lead to dependency conflicts. We will periodically check the repo’s compatibility with the latest diffusers version. The currently tested and supported version is **diffusers==0.33.1**.
 
 ### 4. Clone the repository
 
@@ -84,15 +80,7 @@ cd HelloMeme
 ```bash
 python inference_image.py # for image generation
 python inference_video.py # for video generation
-```
-
-### 6. Install for Gradio App
-
-We recommend setting up the environment with conda.
-
-```bash
-pip install gradio
-python app.py
+python app.py # for Gradio App
 ```
 
 After run the app, all models will be downloaded.
@@ -138,29 +126,6 @@ The output of the video generation script is shown below:
         <td ><img src="./data/trump_jue-toon.gif" width="256" height="256"> <br> Based on <a href="https://civitai.com/models/75650/disney-pixar-cartoon-type-b">disneyPixarCartoon</a> </td>
     </tr>
 </table>
-
-> [!Note]
-> 
-> If the face in the driving video has significant movement (such as evident camera motion), it is recommended to set the `trans_ratio` parameter to 0 to prevent distorted outputs.
-> 
->`inference_video(engines, ref_img_path, drive_video_path, save_path, trans_ratio=0.0)`
-
-## Pretrained Models
-
-Our models are all hosted on [🤗](https://huggingface.co/songkey), and the startup script will download them automatically. The specific model information is as follows:
-
-| model | size  | url  | Info                                                  |
-|-------|-------|------|-------------------------------------------------------|
-| songkey/hm_reference  | 312M  | <a href='https://huggingface.co/songkey/hm_reference'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the ReferenceAdapter module            |
-| songkey/hm_control  | 149M  | <a href='https://huggingface.co/songkey/hm_control'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the HMControlNet module                |
-| songkey/hm_animatediff  | 835M  | <a href='https://huggingface.co/songkey/hm_animatediff'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the Turned Animatediff (patch size 16) |
-| songkey/hm_animatediff_frame12 | 835M  | <a href='https://huggingface.co/songkey/hm_animatediff_frame12'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | The weights of the Turned Animatediff (patch size 12) |
-| hello_3dmm.onnx  | 311M  | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | For face RT Extractor                                 |
-| hello_arkit_blendshape.onnx | 9.11M | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Extract ARKit blendshape parameters                   |
-| hello_face_det.onnx | 317K  | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Face Detector                                         |
-| hello_face_landmark.onnx | 2.87M | <a href='https://huggingface.co/songkey/hello_group_facemodel'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Model-yellow'></a> | Face Landmarks (222 points)                           |
-
-Our pipeline also supports loading stylized base models (safetensors). For video generation tasks, using some customized models for portrait generation, such as [**Realistic Vision V6.0 B1**](https://civitai.com/models/4201/realistic-vision-v60-b1), can produce better results. You can download checkpoints and loras into the directories `pretrained_models/` and `pretrained_models/loras/`, respectively.
 
 ## Acknowledgements
 

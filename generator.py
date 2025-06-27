@@ -30,11 +30,12 @@ from hellomeme.utils import (get_drive_pose,
                              ff_change_fps,
                              load_face_toolkits,
                              append_pipline_weights)
-from hellomeme.pipelines import (HMVideoPipeline, HMImagePipeline,
-                                 HM3VideoPipeline, HM3ImagePipeline,
-                                 HM5VideoPipeline, HM5ImagePipeline)
+from hellomeme import (HMVideoPipeline, HMImagePipeline,
+                     HM3VideoPipeline, HM3ImagePipeline,
+                     HM5VideoPipeline, HM5ImagePipeline)
 
 from hellomeme.tools.sr import RealESRGANer
+from hellomeme.tools.utils import creat_model_from_cloud
 
 cur_dir = osp.dirname(osp.abspath(__file__))
 
@@ -65,32 +66,34 @@ class Generator(object):
             print(f"@@ Pipeline {new_token}({self.pipeline_counter[new_token]}) already exists, reuse it.")
             return new_token
 
-        if self.modelscope:
-            from modelscope import snapshot_download
-            sd1_5_dir = snapshot_download('songkey/stable-diffusion-v1-5')
-        else:
-            sd1_5_dir = 'songkey/stable-diffusion-v1-5'
-
-        if version == 'v3' or version == 'v4':
+        if version in ['v3', 'v4']:
             if type == 'image':
-                tmp_pipeline = HM3ImagePipeline.from_pretrained(sd1_5_dir)
+                tmp_pipeline = creat_model_from_cloud(HM3ImagePipeline, checkpoint_path,
+                                                  modelscope=self.modelscope)
             else:
-                tmp_pipeline = HM3VideoPipeline.from_pretrained(sd1_5_dir)
-        elif version == 'v5' or version == 'v5b':
+                tmp_pipeline = creat_model_from_cloud(HM3VideoPipeline, checkpoint_path,
+                                                  modelscope=self.modelscope)
+        elif version in ['v5', 'v5b', 'v5c']:
             if type == 'image':
-                tmp_pipeline = HM5ImagePipeline.from_pretrained(sd1_5_dir)
+                tmp_pipeline = creat_model_from_cloud(HM5ImagePipeline, checkpoint_path,
+                                                  modelscope=self.modelscope)
             else:
-                tmp_pipeline = HM5VideoPipeline.from_pretrained(sd1_5_dir)
+                tmp_pipeline = creat_model_from_cloud(HM5VideoPipeline, checkpoint_path,
+                                                  modelscope=self.modelscope)
         else:
             if type == 'image':
-                tmp_pipeline = HMImagePipeline.from_pretrained(sd1_5_dir)
+                tmp_pipeline = creat_model_from_cloud(HMImagePipeline, checkpoint_path,
+                                                  modelscope=self.modelscope)
             else:
-                tmp_pipeline = HMVideoPipeline.from_pretrained(sd1_5_dir)
+                tmp_pipeline = creat_model_from_cloud(HMVideoPipeline, checkpoint_path,
+                                                  modelscope=self.modelscope)
 
         tmp_pipeline.to(dtype=self.dtype)
         tmp_pipeline.caryomitosis(version=version, modelscope=self.modelscope)
-        append_pipline_weights(tmp_pipeline, checkpoint_path, lora_path, vae_path,
-                               stylize=stylize, lora_scale=lora_scale)
+        append_pipline_weights(tmp_pipeline, lora_path, vae_path,
+                               stylize=stylize, lora_scale=lora_scale,
+                               official_id='songkey/stable-diffusion-v1-5',
+                               modelscope=self.modelscope)
         tmp_pipeline.insert_hm_modules(dtype=self.dtype, version=version, modelscope=self.modelscope)
 
         if len(self.pipeline_dict) >= self.pipeline_dict_len:
@@ -143,9 +146,11 @@ class Generator(object):
 
         if cntrl_version == 'cntrl1':
             drive_params = get_drive_expression(self.toolkits, drive_frames, drive_landmarks)
+            ref_params = get_drive_expression(self.toolkits, ref_frames, ref_landmarks)
         else:
             # for HMControlNet2
             drive_params = get_drive_expression_pd_fgc(self.toolkits, drive_frames, drive_landmarks)
+            ref_params = get_drive_expression_pd_fgc(self.toolkits, ref_frames, ref_landmarks)
 
         control_heatmaps = gen_control_heatmaps(drive_rot,
                                                 drive_trans,
@@ -153,11 +158,18 @@ class Generator(object):
                                                 save_size=save_size,
                                                 trans_ratio=trans_ratio)
 
+        ref_heatmaps = gen_control_heatmaps(ref_rot,
+                                                ref_trans,
+                                                ref_trans[0],
+                                                save_size=save_size,
+                                                trans_ratio=0)
+
         drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
+        ref_params['condition'] = ref_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 
         generator = torch.Generator().manual_seed(seed if seed >= 0 else random.randint(0, 2**32-1))
 
-        PROMPT = DEFAULT_PROMPT_NEW if self.pipeline_dict[pipeline_token].version == 'v5b' else DEFAULT_PROMPT
+        PROMPT = DEFAULT_PROMPT_NEW if self.pipeline_dict[pipeline_token].version in ['v5b', 'v5c'] else DEFAULT_PROMPT
         prompt = PROMPT if prompt == '' else prompt + ", " + PROMPT
 
         result_img, latents = self.pipeline_dict[pipeline_token](
@@ -165,6 +177,7 @@ class Generator(object):
             strength=1.0,
             image=input_ref_pil,
             drive_params=drive_params,
+            ref_params=ref_params,
             num_inference_steps=steps,
             negative_prompt=[negative_prompt],
             guidance_scale=guidance,
@@ -233,14 +246,24 @@ class Generator(object):
 
         if cntrl_version == 'cntrl1':
             drive_params = get_drive_expression(self.toolkits, drive_frames, drive_landmarks)
+            ref_params = get_drive_expression(self.toolkits, ref_frames, ref_landmarks)
         else:
             # for HMControlNet2
             drive_params = get_drive_expression_pd_fgc(self.toolkits, drive_frames, drive_landmarks)
+            ref_params = get_drive_expression_pd_fgc(self.toolkits, ref_frames, ref_landmarks)
 
-        control_heatmaps = gen_control_heatmaps(drive_rot, drive_trans, ref_trans[0], save_size=save_size,
+        control_heatmaps = gen_control_heatmaps(drive_rot,
+                                                drive_trans,
+                                                ref_trans[0],
+                                                save_size=save_size,
                                                 trans_ratio=trans_ratio)
+        ref_heatmaps = gen_control_heatmaps(ref_rot,
+                                                ref_trans,
+                                                ref_trans[0],
+                                                save_size=save_size,
+                                                trans_ratio=0)
         drive_params['condition'] = control_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
-
+        ref_params['condition'] = ref_heatmaps.unsqueeze(0).to(dtype=dtype, device='cpu')
 
         prompt = DEFAULT_PROMPT if prompt == '' else prompt + ", " + DEFAULT_PROMPT
 
@@ -251,6 +274,7 @@ class Generator(object):
             image=input_ref_pil,
             patch_overlap=patch_overlap,
             drive_params=drive_params,
+            ref_params=ref_params,
             num_inference_steps=num_steps,
             negative_prompt=[negative_prompt],
             guidance_scale=guidance,
