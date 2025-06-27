@@ -127,7 +127,8 @@ class Generator(object):
                        negative_prompt,
                        trans_ratio,
                        crop_reference,
-                       cntrl_version='cntrl2'
+                       cntrl_version='cntrl2',
+                       sr=True
                        ):
 
         save_size = 512
@@ -187,7 +188,7 @@ class Generator(object):
         )
 
         res_image_np = np.clip(result_img[0][0] * 255, 0, 255).astype(np.uint8)
-        if hasattr(self, 'upsampler'):
+        if hasattr(self, 'upsampler') and sr:
             res_image_np = cv2.cvtColor(res_image_np, cv2.COLOR_RGB2BGR)
             res_image_np, _ = self.upsampler.enhance(res_image_np, outscale=2)
             res_image_np = cv2.cvtColor(res_image_np, cv2.COLOR_RGB2BGR)
@@ -208,7 +209,8 @@ class Generator(object):
                        crop_reference,
                        patch_overlap,
                        cntrl_version,
-                       fps8):
+                       fps8,
+                       sr=True):
 
         dtype = self.toolkits['dtype']
         device = self.toolkits['device']
@@ -284,7 +286,7 @@ class Generator(object):
         )
         res_frames_np = [np.clip(x[0] * 255, 0, 255).astype(np.uint8) for x in res_frames]
 
-        if hasattr(self, 'upsampler'):
+        if hasattr(self, 'upsampler') and sr:
             res_frames_np = [cv2.cvtColor(x, cv2.COLOR_RGB2BGR) for x in res_frames_np]
             res_frames_np = [self.upsampler.enhance(x, outscale=2)[0] for x in res_frames_np]
             res_frames_np = [cv2.cvtColor(x, cv2.COLOR_RGB2BGR) for x in res_frames_np]
