@@ -144,8 +144,9 @@ def creat_model_from_cloud(model_cls,
                             cache_dir=None,
                             subfolder=None,
                             hf_token=None):
-
-    if osp.isfile(model_id) and model_id.endswith('.safetensors'):
+    if osp.isdir(model_id):
+        model = model_cls.from_pretrained(model_id)
+    elif osp.isfile(model_id) and model_id.endswith('.safetensors'):
         model = model_cls.from_single_file(model_id)
     else:
         if modelscope:
