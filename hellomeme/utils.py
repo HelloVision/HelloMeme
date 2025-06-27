@@ -41,8 +41,8 @@ def get_torch_device(gpu_id=-1):
     return torch.device(f"cuda:{gpu_id}")
 
 def load_face_toolkits(dtype=torch.float16, gpu_id=-1, modelscope=False):
-    pd_fpg_motion = creat_model_from_cloud(FanEncoder, 'songkey/pd_fgc_motion')
-    image_encoder = creat_model_from_cloud(CLIPVisionModelWithProjection, 'songkey/IP-Adapter', subfolder='models/image_encoder')
+    pd_fpg_motion = creat_model_from_cloud(FanEncoder, 'songkey/pd_fgc_motion', modelscope=modelscope)
+    image_encoder = creat_model_from_cloud(CLIPVisionModelWithProjection, 'songkey/IP-Adapter', subfolder='models/image_encoder', modelscope=modelscope)
 
     image_encoder.to(dtype=dtype).cpu()
     pd_fpg_motion.to(dtype=dtype).cpu()
